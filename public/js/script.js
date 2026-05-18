@@ -1,25 +1,15 @@
-/**
- * Manejo de Sesión y Navegación
- */
-/**
- * Manejo de Sesión y Navegación
- */
-function login() {
-    const user = document.querySelector('input[type="text"]').value;
-    const pass = document.querySelector('input[type="password"]').value;
 
-    if (user && pass) {
-        // CU-10: Autenticar Usuario
-        window.location.href = 'dashboard.html';
+function login() {
+    const user = document.getElementById('username')?.value;
+    const pass = document.getElementById('password')?.value;
+
+    if (user === 'admin' && pass === '123456') {
+        window.location.href = '/dashboard';
     } else {
         alert("Error: Credenciales incorrectas o campos vacíos.");
     }
 }
 
-/**
- * Integración con API RENIEC (vía Apisperu)
- * Se utiliza el token de acceso directo para la consulta de datos
- */
 async function consultarReniec() {
     const dni = document.getElementById('dni-input').value.trim();
     const btn = document.getElementById('btn-reniec');
@@ -80,14 +70,15 @@ async function registrarPaciente() {
     };
 
     try {
-        const response = await fetch('http://localhost:3000/api/pacientes', {
+        // Ajustado para usar la ruta de Laravel en lugar de un puerto externo
+        const response = await fetch('/pacientes/guardar', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value },
             body: JSON.stringify(datos)
         });
 
         if (response.ok) {
-            alert("✅ Paciente guardado correctamente en SQL Server.");
+            alert("✅ Paciente guardado correctamente en MySQL (BioFarma).");
             // Opcional: limpiar formulario
         } else {
             throw new Error("Error al guardar");
@@ -97,6 +88,49 @@ async function registrarPaciente() {
         alert("❌ No se pudo conectar con el servidor local. ¿Está corriendo server.js?");
     }
 }
+
+/**
+ * SISTEMA DE NAVEGACIÓN MODULAR
+ */
+function showView(viewId) {
+    if (window.location.pathname !== '/pacientes') {
+        window.location.href = '/pacientes';
+        return;
+    }
+
+    document.querySelectorAll('.view').forEach(v => {
+        v.style.display = 'none';
+        v.classList.remove('active');
+    });
+
+    const target = document.getElementById(viewId);
+    if (target) {
+        target.style.display = 'block';
+        target.classList.add('active');
+    }
+    
+    if (viewId === 'view-gestion' && typeof window.listarPacientes === 'function') {
+        window.listarPacientes();
+    }
+}
+window.showView = showView;
+
+/**
+ * SISTEMA DE MENÚ DESPLEGABLE
+ */
+function toggleSubmenu() {
+    const submenu = document.getElementById('submenu-pacientes');
+    const arrow = document.getElementById('arrow-pacientes');
+    
+    if (submenu.style.display === 'none' || submenu.style.display === '') {
+        submenu.style.display = 'flex';
+        arrow.textContent = '▲';
+    } else {
+        submenu.style.display = 'none';
+        arrow.textContent = '▼';
+    }
+}
+window.toggleSubmenu = toggleSubmenu;
 
 /**
  * CU-04: Seleccionar Interfaz de Idioma
@@ -129,7 +163,7 @@ function generateReport() {
     if (content && empty) {
         empty.style.display = 'none';
         content.style.display = 'block';
-        console.log("Procesando diagnósticos de los últimos 7 días en SQL Server...");
+        console.log("Procesando diagnósticos de los últimos 7 días en MySQL...");
     }
 }
 

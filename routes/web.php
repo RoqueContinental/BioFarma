@@ -3,13 +3,17 @@
 use App\Http\Controllers\PacienteController;
 use Illuminate\Support\Facades\Route;
 
-// Ruta raíz: Redirige automáticamente a pacientes o muestra una bienvenida
+
 Route::get('/', function () {
-    return redirect('/pacientes');
+    return redirect('/registro-pacientes');
 });
 
-Route::get('/pacientes', function () {
+// Ambos módulos conviven en la misma vista, controlados por la lógica de navegación en JS
+Route::get('/registro-pacientes', function () {
     return view('pacientes');
 });
 
+Route::get('/pacientes/listar', [PacienteController::class, 'index']);
 Route::post('/pacientes/guardar', [PacienteController::class, 'store']);
+Route::get('/pacientes/buscar/{dni}', [PacienteController::class, 'buscar']);
+Route::post('/pacientes/eliminar', [PacienteController::class, 'destroy']);
