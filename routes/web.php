@@ -5,15 +5,38 @@ use Illuminate\Support\Facades\Route;
 
 
 Route::get('/', function () {
-    return redirect('/registro-pacientes');
+    return view('index');
 });
 
-// Ambos módulos conviven en la misma vista, controlados por la lógica de navegación en JS
-Route::get('/registro-pacientes', function () {
+Route::get('/dashboard', function () {
+    return view('dashboard');
+});
+
+Route::get('/pacientes', function () {
     return view('pacientes');
+});
+
+Route::get('/triaje', function () {
+    return view('triaje'); 
+});
+
+Route::get('/diagnostico', function () {
+    return view('diagnostico');
+});
+
+Route::get('/vademecum', function () {
+    return view('vademecum');
+});
+
+Route::get('/reportes', function () {
+    return view('reportes');
 });
 
 Route::get('/pacientes/listar', [PacienteController::class, 'index']);
 Route::post('/pacientes/guardar', [PacienteController::class, 'store']);
 Route::get('/pacientes/buscar/{dni}', [PacienteController::class, 'buscar']);
 Route::post('/pacientes/eliminar', [PacienteController::class, 'destroy']);
+
+Route::get('/logout', function () {
+    return redirect('/');
+});

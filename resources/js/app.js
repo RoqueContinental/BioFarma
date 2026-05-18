@@ -251,7 +251,7 @@ window.cargarDatosEnFormulario = cargarDatosEnFormulario;
  * SISTEMA DE NAVEGACIÓN MODULAR
  */
 function showView(viewId) {
-    // Si no estamos en la página de pacientes, redirigimos primero
+    // Redirigir a la vista de pacientes si se intenta abrir un sub-módulo desde otra página
     if (window.location.pathname !== '/pacientes') {
         window.location.href = '/pacientes';
         return;

@@ -1,11 +1,7 @@
 @extends('layouts.app')
 
 @section('content')
-    {{-- Selector de Módulos (Simulación de navegación lateral) --}}
-    <nav style="margin-bottom: 20px; display: flex; gap: 10px;">
-        <button onclick="showView('view-registro')" class="btn" style="background: var(--primary);">Módulo 1: Registro de pacientes</button>
-        <button onclick="showView('view-gestion')" class="btn" style="background: #34495e;">Módulo 2: Gestión de pacientes locales</button>
-    </nav>
+
 
     <!-- MÓDULO 1: REGISTRO DE PACIENTES -->
     <div id="view-registro" class="view active">

@@ -73,7 +73,10 @@ async function registrarPaciente() {
         // Ajustado para usar la ruta de Laravel en lugar de un puerto externo
         const response = await fetch('/pacientes/guardar', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('input[name="_token"]').value },
+            headers: { 
+                'Content-Type': 'application/json', 
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') 
+            },
             body: JSON.stringify(datos)
         });
 
