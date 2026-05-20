@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\PacienteController;
+use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
 
@@ -36,6 +37,11 @@ Route::get('/pacientes/listar', [PacienteController::class, 'index']);
 Route::post('/pacientes/guardar', [PacienteController::class, 'store']);
 Route::get('/pacientes/buscar/{dni}', [PacienteController::class, 'buscar']);
 Route::post('/pacientes/eliminar', [PacienteController::class, 'destroy']);
+
+// Rutas de Gestión de Usuarios
+Route::get('/usuarios/listar', [UserController::class, 'index']);
+Route::post('/usuarios/guardar', [UserController::class, 'store']);
+Route::post('/usuarios/eliminar', [UserController::class, 'destroy']);
 
 Route::get('/logout', function () {
     return redirect('/');

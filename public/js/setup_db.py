@@ -24,6 +24,18 @@ def configurar_base_de_datos():
         
         tablas = [
             """
+            CREATE TABLE IF NOT EXISTS USUARIO (
+                ID_Usuario CHAR(36) NOT NULL,
+                Username VARCHAR(50) NOT NULL,
+                Password VARCHAR(255) NOT NULL,
+                Nombre_Completo VARCHAR(100) NOT NULL,
+                Rol ENUM('admin', 'encargado', 'enfermero') NOT NULL DEFAULT 'enfermero',
+                Estado TINYINT(1) DEFAULT 1,
+                PRIMARY KEY (ID_Usuario),
+                UNIQUE (Username)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+            """,
+            """
             CREATE TABLE IF NOT EXISTS PACIENTE (
                 ID_Paciente CHAR(36) NOT NULL,
                 DNI_CUI VARCHAR(20) NOT NULL,
@@ -197,6 +209,56 @@ def configurar_base_de_datos():
             CREATE PROCEDURE sp_BuscarPacientePorDNI(IN p_DNI_CUI VARCHAR(20))
             BEGIN
                 SELECT * FROM PACIENTE WHERE DNI_CUI = p_DNI_CUI;
+            END;
+            """,
+            # sp_ValidarUsuario (Para el sistema de login)
+            "DROP PROCEDURE IF EXISTS sp_ValidarUsuario;",
+            """
+            CREATE PROCEDURE sp_ValidarUsuario(IN p_Username VARCHAR(50))
+            BEGIN
+                SELECT ID_Usuario, Username, Password, Rol, Estado
+                FROM USUARIO 
+                WHERE Username = p_Username AND Estado = 1;
+            END;
+            """,
+            # sp_ListarUsuarios
+            "DROP PROCEDURE IF EXISTS sp_ListarUsuarios;",
+            """
+            CREATE PROCEDURE sp_ListarUsuarios()
+            BEGIN
+                SELECT ID_Usuario, Username, Nombre_Completo, Rol, Estado
+                FROM USUARIO ORDER BY Rol ASC, Nombre_Completo ASC;
+            END;
+            """,
+            # sp_EliminarUsuario (Baja Lógica)
+            "DROP PROCEDURE IF EXISTS sp_EliminarUsuario;",
+            """
+            CREATE PROCEDURE sp_EliminarUsuario(IN p_ID_Usuario CHAR(36))
+            BEGIN
+                UPDATE USUARIO SET Estado = 0 WHERE ID_Usuario = p_ID_Usuario;
+                SELECT 'Usuario deshabilitado' AS Resultado;
+            END;
+            """,
+            # sp_GuardarUsuario (Para registrar o actualizar encargados/admins)
+            "DROP PROCEDURE IF EXISTS sp_GuardarUsuario;",
+            """
+            CREATE PROCEDURE sp_GuardarUsuario(
+                IN p_Username VARCHAR(50),
+                IN p_Password VARCHAR(255),
+                IN p_Nombre_Completo VARCHAR(100),
+                IN p_Rol ENUM('admin', 'encargado', 'enfermero')
+            )
+            BEGIN
+                IF EXISTS (SELECT 1 FROM USUARIO WHERE Username = p_Username) THEN
+                    UPDATE USUARIO 
+                    SET Password = p_Password,
+                        Nombre_Completo = p_Nombre_Completo,
+                        Rol = p_Rol
+                    WHERE Username = p_Username;
+                ELSE
+                    INSERT INTO USUARIO (ID_Usuario, Username, Password, Nombre_Completo, Rol, Estado)
+                    VALUES (UUID(), p_Username, p_Password, p_Nombre_Completo, p_Rol, 1);
+                END IF;
             END;
             """
         ]

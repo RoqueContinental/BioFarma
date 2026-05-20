@@ -5,14 +5,55 @@ import './bootstrap';
 import '../css/app.css';
 
 
+// Función para actualizar la visualización del perfil de usuario en la barra lateral
+function updateUserProfileDisplay() {
+    const userProfileContainer = document.getElementById('user-profile-info'); // Contenedor principal del perfil
+    const usernameDisplay = document.getElementById('logged-in-username');
+    const fullnameDisplay = document.getElementById('logged-in-fullname');
+    const roleDisplay = document.getElementById('logged-in-role');
+    const loginFormContainer = document.getElementById('login-form-container'); // Contenedor del formulario de login
+
+    const userData = JSON.parse(localStorage.getItem('loggedInUser'));
+
+    if (userData && usernameDisplay && fullnameDisplay && roleDisplay) {
+        usernameDisplay.textContent = userData.Username;
+        fullnameDisplay.textContent = userData.Nombre_Completo;
+        roleDisplay.textContent = userData.Rol.toUpperCase(); // Mostrar el rol en mayúsculas
+        if (userProfileContainer) {
+            userProfileContainer.style.display = 'block'; // Mostrar la sección del perfil
+        }
+        if (loginFormContainer) {
+            loginFormContainer.style.display = 'none'; // Ocultar el formulario de login
+        }
+    } else {
+        // Si no hay datos de usuario, ocultar perfil y mostrar formulario de login
+        if (userProfileContainer) {
+            userProfileContainer.style.display = 'none';
+        }
+        if (loginFormContainer) {
+            loginFormContainer.style.display = 'block';
+        }
+    }
+}
+window.updateUserProfileDisplay = updateUserProfileDisplay;
+
 function login() {
     const user = document.getElementById('username')?.value;
     const pass = document.getElementById('password')?.value;
 
-    if (user === 'admin' && pass === '123456') {
-        window.location.href = '/dashboard';
-    } else {
-        alert("Error: Credenciales incorrectas o campos vacíos.");
+    if (!user || !pass) {
+        alert("Error: Por favor, ingrese usuario y contraseña.");
+        return;
+    }
+
+    try {
+        axios.post('/api/login', { username: user, password: pass })
+            .then(response => {
+                localStorage.setItem('loggedInUser', JSON.stringify(response.data.user));
+                updateUserProfileDisplay(); // Actualizar la barra lateral
+                window.location.href = '/dashboard'; // Redirigir al dashboard
+            })
+            .catch(error => alert("Error: Credenciales incorrectas o error de servidor."));
     }
 }
 window.login = login;
@@ -277,6 +318,10 @@ function showView(viewId) {
     } else if (viewId === 'view-gestion' || viewId === 'view-detalle') {
         document.getElementById('menu-gestion')?.classList.add('active-link');
     }
+    
+    if (viewId === 'view-usuarios') {
+        listarUsuarios();
+    }
 
     // 4. Cargar datos si es el módulo de gestión
     if (viewId === 'view-gestion') listarPacientes();
@@ -338,6 +383,81 @@ function generateReport() {
 }
 window.generateReport = generateReport;
 
+/**
+ * MÓDULO: GESTIÓN DE USUARIOS (MONITOREO)
+ */
+async function listarUsuarios() {
+    const tablaCuerpo = document.getElementById('tabla-usuarios-cuerpo');
+    if (!tablaCuerpo) return;
+
+    try {
+        const response = await axios.get('/usuarios/listar');
+        const usuarios = response.data;
+        tablaCuerpo.innerHTML = '';
+
+        usuarios.forEach(u => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${u.Username}</td>
+                <td>${u.Nombre_Completo}</td>
+                <td><span class="badge">${u.Rol}</span></td>
+                <td><span style="color:${u.Estado ? 'green' : 'red'}">${u.Estado ? 'Activo' : 'Inactivo'}</span></td>
+                <td>
+                    <button onclick="window.eliminarUsuario('${u.ID_Usuario}')" class="btn-small" style="background:#e74c3c; color:white; border:none; cursor:pointer; padding:5px 10px; border-radius:4px;">Deshabilitar</button>
+                </td>
+            `;
+            tablaCuerpo.appendChild(row);
+        });
+    } catch (error) {
+        console.error("Error al listar usuarios:", error);
+    }
+}
+window.listarUsuarios = listarUsuarios;
+
+async function registrarUsuario() {
+    const datos = {
+        username: document.getElementById('user-username').value,
+        password: document.getElementById('user-pass').value,
+        nombre: document.getElementById('user-nombre').value,
+        rol: document.getElementById('user-rol').value
+    };
+
+    try {
+        const response = await axios.post('/usuarios/guardar', datos);
+        alert("✅ " + response.data.message);
+        listarUsuarios();
+        document.getElementById('form-usuario').reset();
+    } catch (error) {
+        alert("❌ Error al guardar usuario");
+    }
+}
+window.registrarUsuario = registrarUsuario;
+
+async function eliminarUsuario(id) {
+    if (!confirm("¿Desea deshabilitar este usuario?")) return;
+    try {
+        await axios.post('/usuarios/eliminar', { id });
+        listarUsuarios();
+    } catch (error) {
+        alert("❌ Error al deshabilitar");
+    }
+}
+window.eliminarUsuario = eliminarUsuario;
+
+// Función para cerrar sesión
+function logout() {
+    localStorage.removeItem('loggedInUser'); // Limpiar datos del usuario del almacenamiento local
+    axios.post('/api/logout') // Opcional: Notificar al servidor para invalidar la sesión
+        .then(() => {
+            window.location.href = '/'; // Redirigir a la página de inicio o login
+        })
+        .catch(error => {
+            console.error("Error durante el logout:", error);
+            window.location.href = '/'; // Redirigir incluso si hay error en la API
+        });
+}
+window.logout = logout;
+
 // Simulación de carga inicial
 document.addEventListener('DOMContentLoaded', () => {
     console.log("MariFarma Pro Engine v1.0 - Perfil cargado");
@@ -348,4 +468,5 @@ document.addEventListener('DOMContentLoaded', () => {
         const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
         dateEl.textContent = new Date().toLocaleDateString('es-ES', options);
     }
+    updateUserProfileDisplay(); // Llamar al cargar la página para mostrar el usuario si ya está logeado
 });
