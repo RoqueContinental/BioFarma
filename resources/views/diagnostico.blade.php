@@ -2,7 +2,7 @@
 
 @section('content')
 <section class="view active">
-    <h2>Módulo 2.1: Consulta IA (GPT-4 Engine)</h2>
+    <h2>Módulo 2.1: Consulta IA (Gemini)</h2>
     
     <div class="form-group">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">

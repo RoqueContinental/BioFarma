@@ -19,6 +19,21 @@ class PacienteController extends Controller
         }
     }
 
+    public function pacientesHoy()
+    {
+        try {
+            // Intentamos llamar a un procedimiento o hacer una consulta directa por fecha
+            // Asumimos que la tabla tiene un campo 'created_at' o similar para la fecha de registro
+            $pacientes = DB::select("SELECT DNI_CUI, Nombres, Apellidos, DATE_FORMAT(created_at, '%H:%i') as Hora 
+                                     FROM PACIENTE 
+                                     WHERE DATE(created_at) = CURDATE() AND Estado = 1 
+                                     ORDER BY created_at DESC");
+            return response()->json($pacientes);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
     public function store(Request $request)
     {
         $request->validate([

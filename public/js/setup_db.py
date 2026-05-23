@@ -27,7 +27,7 @@ def configurar_base_de_datos():
             CREATE TABLE IF NOT EXISTS USUARIO (
                 ID_Usuario CHAR(36) NOT NULL,
                 Username VARCHAR(50) NOT NULL,
-                Password VARCHAR(255) NOT NULL,
+                Password_Hash VARCHAR(255) NOT NULL,
                 Nombre_Completo VARCHAR(100) NOT NULL,
                 Rol ENUM('admin', 'encargado', 'enfermero') NOT NULL DEFAULT 'enfermero',
                 Estado TINYINT(1) DEFAULT 1,
@@ -47,6 +47,8 @@ def configurar_base_de_datos():
                 Telefono VARCHAR(20),
                 Alergias_Cronicas TEXT,
                 Estado TINYINT(1) DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
                 PRIMARY KEY (ID_Paciente),
                 UNIQUE (DNI_CUI)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -216,7 +218,7 @@ def configurar_base_de_datos():
             """
             CREATE PROCEDURE sp_ValidarUsuario(IN p_Username VARCHAR(50))
             BEGIN
-                SELECT ID_Usuario, Username, Password, Rol, Estado
+                SELECT ID_Usuario, Username, Password_Hash, Nombre_Completo, Rol, Estado
                 FROM USUARIO 
                 WHERE Username = p_Username AND Estado = 1;
             END;
@@ -251,12 +253,12 @@ def configurar_base_de_datos():
             BEGIN
                 IF EXISTS (SELECT 1 FROM USUARIO WHERE Username = p_Username) THEN
                     UPDATE USUARIO 
-                    SET Password = p_Password,
+                    SET Password_Hash = p_Password,
                         Nombre_Completo = p_Nombre_Completo,
                         Rol = p_Rol
                     WHERE Username = p_Username;
                 ELSE
-                    INSERT INTO USUARIO (ID_Usuario, Username, Password, Nombre_Completo, Rol, Estado)
+                    INSERT INTO USUARIO (ID_Usuario, Username, Password_Hash, Nombre_Completo, Rol, Estado)
                     VALUES (UUID(), p_Username, p_Password, p_Nombre_Completo, p_Rol, 1);
                 END IF;
             END;

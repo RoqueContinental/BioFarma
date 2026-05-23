@@ -1,38 +1,32 @@
-/**
- * Manejo de Sesión y Navegación
- */
 import './bootstrap';
 import '../css/app.css';
 
 
-// Función para actualizar la visualización del perfil de usuario en la barra lateral
 function updateUserProfileDisplay() {
-    const userProfileContainer = document.getElementById('user-profile-info'); // Contenedor principal del perfil
+    const userProfileContainer = document.getElementById('user-profile-info'); 
     const usernameDisplay = document.getElementById('logged-in-username');
     const fullnameDisplay = document.getElementById('logged-in-fullname');
     const roleDisplay = document.getElementById('logged-in-role');
-    const loginFormContainer = document.getElementById('login-form-container'); // Contenedor del formulario de login
+    const loginFormContainer = document.getElementById('login-form-container'); 
 
-    const userData = JSON.parse(localStorage.getItem('loggedInUser'));
+    const rawData = localStorage.getItem('loggedInUser');
+    const userData = rawData ? JSON.parse(rawData) : null;
 
-    if (userData && usernameDisplay && fullnameDisplay && roleDisplay) {
-        usernameDisplay.textContent = userData.Username;
-        fullnameDisplay.textContent = userData.Nombre_Completo;
-        roleDisplay.textContent = userData.Rol.toUpperCase(); // Mostrar el rol en mayúsculas
+    if (userData) {
+        // Usamos los nombres de las columnas en minúsculas (debido a array_change_key_case en PHP)
+        if (usernameDisplay) usernameDisplay.textContent = userData.username || 'Usuario';
+        if (fullnameDisplay) fullnameDisplay.textContent = userData.nombre_completo || 'Nombre no disponible';
+        if (roleDisplay) roleDisplay.textContent = (userData.rol || "enfermero").toUpperCase();
+
         if (userProfileContainer) {
-            userProfileContainer.style.display = 'block'; // Mostrar la sección del perfil
+            userProfileContainer.style.display = 'block'; 
         }
         if (loginFormContainer) {
-            loginFormContainer.style.display = 'none'; // Ocultar el formulario de login
+            loginFormContainer.style.display = 'none'; 
         }
     } else {
-        // Si no hay datos de usuario, ocultar perfil y mostrar formulario de login
-        if (userProfileContainer) {
-            userProfileContainer.style.display = 'none';
-        }
-        if (loginFormContainer) {
-            loginFormContainer.style.display = 'block';
-        }
+        if (userProfileContainer) userProfileContainer.style.display = 'none';
+        if (loginFormContainer) loginFormContainer.style.display = 'block';
     }
 }
 window.updateUserProfileDisplay = updateUserProfileDisplay;
@@ -50,18 +44,17 @@ function login() {
         axios.post('/api/login', { username: user, password: pass })
             .then(response => {
                 localStorage.setItem('loggedInUser', JSON.stringify(response.data.user));
-                updateUserProfileDisplay(); // Actualizar la barra lateral
-                window.location.href = '/dashboard'; // Redirigir al dashboard
+                updateUserProfileDisplay(); 
+                window.location.href = '/dashboard'; 
             })
             .catch(error => alert("Error: Credenciales incorrectas o error de servidor."));
-    }
+    } catch (error) {
+        console.error("Error crítico en la petición:", error);
+    } 
 }
 window.login = login;
 
-/**
- * MÓDULO 1: REGISTRO DE PACIENTES
- * Maneja la consulta a RENIEC y el guardado de datos.
- */
+
 async function consultarReniec() {
     const dni = document.getElementById('dni-input').value.trim();
     const btn = document.getElementById('btn-reniec');
@@ -186,6 +179,39 @@ async function listarPacientes() {
     }
 }
 window.listarPacientes = listarPacientes;
+
+/**
+ * MÓDULO DASHBOARD: Listado de pacientes del día
+ */
+async function listarPacientesHoy() {
+    const tablaCuerpo = document.getElementById('tabla-pacientes-hoy-cuerpo');
+    if (!tablaCuerpo) return;
+
+    try {
+        const response = await axios.get('/pacientes/hoy');
+        const pacientes = response.data;
+
+        if (pacientes.length === 0) {
+            tablaCuerpo.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px;">No hay pacientes registrados hoy.</td></tr>';
+            return;
+        }
+
+        tablaCuerpo.innerHTML = '';
+        pacientes.forEach(p => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td style="font-weight:bold;">${p.Hora}</td>
+                <td>${p.DNI_CUI}</td>
+                <td>${p.Nombres} ${p.Apellidos}</td>
+            `;
+            tablaCuerpo.appendChild(row);
+        });
+    } catch (error) {
+        console.error("Error al cargar pacientes del día:", error);
+        tablaCuerpo.innerHTML = '<tr><td colspan="3" style="color:red;">Error al cargar datos.</td></tr>';
+    }
+}
+window.listarPacientesHoy = listarPacientesHoy;
 
 /**
  * MÓDULO 2: VISUALIZACIÓN DETALLADA
@@ -321,6 +347,11 @@ function showView(viewId) {
     
     if (viewId === 'view-usuarios') {
         listarUsuarios();
+    }
+
+    // Cargar datos del día si entramos al dashboard
+    if (viewId === 'view-dashboard' || document.getElementById('view-dashboard')?.classList.contains('active')) {
+        listarPacientesHoy();
     }
 
     // 4. Cargar datos si es el módulo de gestión
@@ -469,4 +500,9 @@ document.addEventListener('DOMContentLoaded', () => {
         dateEl.textContent = new Date().toLocaleDateString('es-ES', options);
     }
     updateUserProfileDisplay(); // Llamar al cargar la página para mostrar el usuario si ya está logeado
+    
+    // Si el contenedor del dashboard existe, cargar los pacientes del día automáticamente
+    if (document.getElementById('tabla-pacientes-hoy-cuerpo')) {
+        listarPacientesHoy();
+    }
 });

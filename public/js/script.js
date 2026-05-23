@@ -1,12 +1,33 @@
-
-function login() {
+async function login() {
     const user = document.getElementById('username')?.value;
     const pass = document.getElementById('password')?.value;
+    if (!user || !pass) {
+        alert("Error: Por favor, ingrese usuario y contraseña.");
+        return;
+    }
 
-    if (user === 'admin' && pass === '123456') {
-        window.location.href = '/dashboard';
-    } else {
-        alert("Error: Credenciales incorrectas o campos vacíos.");
+    try {
+        const response = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
+            },
+            body: JSON.stringify({ username: user, password: pass })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.status === 'success') {
+            // Guardamos el usuario en localStorage para que el Dashboard lo reconozca
+            localStorage.setItem('loggedInUser', JSON.stringify(data.user));
+            window.location.href = '/dashboard';
+        } else {
+            alert("Error: " + (data.message || "Credenciales incorrectas o error de servidor."));
+        }
+    } catch (error) {
+        console.error("Error en el login:", error);
+        alert("❌ Error de servidor: No se pudo conectar con la base de datos.");
     }
 }
 

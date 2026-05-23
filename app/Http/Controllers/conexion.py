@@ -9,8 +9,8 @@ def obtener_conexion():
     try:
         conexion = mysql.connector.connect(
             host='localhost',
-            user='root',      # Usuario por defecto en Laragon
-            password='Samsung_852',      # Contraseña por defecto en Laragon (vacía)
+            user='root',      
+            password='Samsung_852',      
             database='BioFarma'
         )
 

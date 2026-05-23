@@ -19,38 +19,42 @@ class AuthController extends Controller
             // Llama al procedimiento almacenado para obtener los detalles del usuario
             $userResult = DB::select('CALL sp_ValidarUsuario(?)', [$request->username]);
 
-            if (empty($userResult)) {
+            if (!$userResult || count($userResult) === 0) {
                 return response()->json(['status' => 'error', 'message' => 'Credenciales incorrectas.'], 401);
             }
 
-            $user = (array) $userResult[0]; // Convierte el objeto stdClass a array
+            // DB::select devuelve una colección de objetos stdClass
+            $userObj = (array) $userResult[0];
+            
+            // Normalizamos las llaves a minúsculas para evitar problemas de Case Sensitivity (Password vs password)
+            $userArray = array_change_key_case($userObj, CASE_LOWER);
+            $dbPassword = $userArray['password_hash'] ?? null;
 
-            // Comparación de contraseña en texto plano
-            if ($request->password === $user['Password']) {
-                // Si las credenciales son correctas, eliminamos la contraseña
-                // y el estado antes de enviarlo al frontend por seguridad.
-                unset($user['Password']);
-                unset($user['Estado']); 
+            if ($request->password === $dbPassword) {
+                // Limpiamos datos sensibles antes de enviar al frontend
+                unset($userArray['password_hash'], $userArray['estado']);
 
                 return response()->json([
                     'status' => 'success',
                     'message' => 'Inicio de sesión exitoso.',
-                    'user' => $user
+                    'user' => $userArray
                 ]);
             } else {
                 return response()->json(['status' => 'error', 'message' => 'Credenciales incorrectas.'], 401);
             }
         } catch (\Exception $e) {
-            Log::error("Error en el login: " . $e->getMessage());
-            return response()->json(['status' => 'error', 'message' => 'Error interno del servidor.'], 500);
+            Log::error("Login Error: " . $e->getMessage());
+            return response()->json([
+                'status' => 'error', 
+                'message' => 'Error técnico: ' . $e->getMessage(),
+                'hint' => 'Verifica que el procedimiento sp_ValidarUsuario exista en la BD BioFarma.'
+            ], 500);
         }
     }
 
     public function logout(Request $request)
     {
-        // En este enfoque, el logout es principalmente del lado del cliente (limpiar localStorage).
-        // Si tuvieras un sistema de sesiones o tokens en el backend, aquí lo invalidarías.
-        // Por ahora, simplemente confirmamos la acción.
+        
         return response()->json(['status' => 'success', 'message' => 'Sesión cerrada.']);
     }
 }

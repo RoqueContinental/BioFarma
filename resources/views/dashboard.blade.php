@@ -23,7 +23,7 @@
 </div>
 
 <script>
-    // Al cargar el dashboard, podemos disparar una petición al PacienteController
+    
     document.addEventListener('DOMContentLoaded', async () => {
         try {
             const response = await fetch('/pacientes/listar');

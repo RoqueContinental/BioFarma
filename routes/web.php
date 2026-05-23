@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\PacienteController;
+use App\Http\Controllers\AuthController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -33,7 +34,12 @@ Route::get('/reportes', function () {
     return view('reportes');
 });
 
+// Rutas de Autenticación
+Route::post('/api/login', [AuthController::class, 'login']);
+Route::post('/api/logout', [AuthController::class, 'logout']);
+
 Route::get('/pacientes/listar', [PacienteController::class, 'index']);
+Route::get('/pacientes/hoy', [PacienteController::class, 'pacientesHoy']);
 Route::post('/pacientes/guardar', [PacienteController::class, 'store']);
 Route::get('/pacientes/buscar/{dni}', [PacienteController::class, 'buscar']);
 Route::post('/pacientes/eliminar', [PacienteController::class, 'destroy']);
