@@ -47,7 +47,12 @@ function login() {
                 updateUserProfileDisplay(); 
                 window.location.href = '/dashboard'; 
             })
-            .catch(error => alert("Error: Credenciales incorrectas o error de servidor."));
+            .catch(error => {
+                console.error("Error en login:", error);
+                const msg = error.response?.data?.message || "Error de servidor o red.";
+                const hint = error.response?.data?.hint ? `\n\nAyuda: ${error.response.data.hint}` : "";
+                alert(`❌ Error: ${msg}${hint}`);
+            });
     } catch (error) {
         console.error("Error crítico en la petición:", error);
     } 
@@ -120,7 +125,7 @@ async function registrarPaciente() {
 
         if (response.status === 200) {
             alert("✅ " + response.data.message);
-            document.querySelector('form').reset();
+            document.getElementById('form-paciente')?.reset();
             ultimoPacienteEncontrado = null;
             // Si veníamos de Gestión, refrescamos la tabla automáticamente
             if (document.getElementById('view-gestion')) listarPacientes();
@@ -318,10 +323,18 @@ window.cargarDatosEnFormulario = cargarDatosEnFormulario;
  * SISTEMA DE NAVEGACIÓN MODULAR
  */
 function showView(viewId) {
-    // Redirigir a la vista de pacientes si se intenta abrir un sub-módulo desde otra página
-    if (window.location.pathname !== '/pacientes') {
-        window.location.href = '/pacientes';
-        return;
+    const currentPath = window.location.pathname;
+    
+    // Mapa de vistas por página para evitar redirecciones incorrectas
+    const pageMap = {
+        'view-registro': '/pacientes',
+        'view-gestion': '/pacientes',
+        'view-triaje-registro': '/triaje',
+        'view-triaje-gestion': '/triaje'
+    };
+
+    if (pageMap[viewId] && currentPath !== pageMap[viewId]) {
+        window.location.href = pageMap[viewId]; return;
     }
 
     // 1. Ocultar todas las vistas
@@ -343,6 +356,13 @@ function showView(viewId) {
         document.getElementById('menu-registro')?.classList.add('active-link');
     } else if (viewId === 'view-gestion' || viewId === 'view-detalle') {
         document.getElementById('menu-gestion')?.classList.add('active-link');
+    }
+
+    if (viewId === 'view-triaje-registro') {
+        document.getElementById('menu-triaje-registro')?.classList.add('active-link');
+    } else if (viewId === 'view-triaje-gestion') {
+        document.getElementById('menu-triaje-gestion')?.classList.add('active-link');
+        listarTriajesHoy(); // Carga inicial por defecto
     }
     
     if (viewId === 'view-usuarios') {
@@ -375,6 +395,132 @@ function toggleSubmenu() {
     }
 }
 window.toggleSubmenu = toggleSubmenu;
+
+/**
+ * SISTEMA DE MENÚ DESPLEGABLE TRIAJE
+ */
+function toggleSubmenuTriaje() {
+    const submenu = document.getElementById('submenu-triaje');
+    const arrow = document.getElementById('arrow-triaje');
+    if (!submenu) return;
+    
+    if (submenu.style.display === 'none' || submenu.style.display === '') {
+        submenu.style.display = 'flex';
+        if (arrow) arrow.textContent = '▲';
+    } else {
+        submenu.style.display = 'none';
+        if (arrow) arrow.textContent = '▼';
+    }
+}
+window.toggleSubmenuTriaje = toggleSubmenuTriaje;
+
+/**
+ * FUNCIONES DE TRIAJE MODULAR
+ */
+
+/**
+ * Valida si el paciente existe antes de permitir el triaje.
+ * Si no existe, ofrece redirigir al módulo de registro de pacientes.
+ */
+async function validarPacienteParaTriaje() {
+    const dni = document.getElementById('triaje-dni')?.value;
+    if (!dni || dni.length < 8) return alert("Ingrese un DNI válido.");
+
+    try {
+        const response = await axios.get(`/pacientes/buscar/${dni}`);
+        if (response.data.status === 'success') {
+            const p = response.data.data;
+            alert(`✅ Paciente identificado: ${p.Nombres} ${p.Apellidos}. Puede proceder.`);
+            // Opcional: Mostrar el nombre en un label de la interfaz
+            if(document.getElementById('paciente-seleccionado-nombre')) {
+                document.getElementById('paciente-seleccionado-nombre').textContent = `${p.Nombres} ${p.Apellidos}`;
+            }
+        }
+    } catch (error) {
+        if (confirm("❌ Paciente no encontrado. ¿Desea ir al módulo de Registro de Pacientes ahora?")) {
+            showView('view-registro');
+        }
+    }
+}
+window.validarPacienteParaTriaje = validarPacienteParaTriaje;
+
+async function registrarTriaje() {
+    const rawUser = localStorage.getItem('loggedInUser');
+    const userData = rawUser ? JSON.parse(rawUser) : null;
+    if (!userData || !userData.id_usuario) return alert("❌ Error: No se detectó sesión de usuario.");
+
+    const datos = {
+        dni: document.getElementById('triaje-dni')?.value,
+        temperatura: document.getElementById('triaje-temp')?.value,
+        presion: document.getElementById('triaje-presion')?.value,
+        saturacion: document.getElementById('triaje-sat')?.value,
+        fc: document.getElementById('triaje-fc')?.value,
+        peso: document.getElementById('triaje-peso')?.value,
+        id_usuario: userData.id_usuario
+    };
+
+    try {
+        const response = await axios.post('/triaje/guardar', datos);
+        alert("✅ " + response.data.message);
+        document.getElementById('form-triaje')?.reset();
+    } catch (error) {
+        alert("❌ Error: " + (error.response?.data?.message || "No se pudo registrar el triaje"));
+    }
+}
+window.registrarTriaje = registrarTriaje;
+
+async function listarTriajesHoy() {
+    const fecha = new Date().toISOString().split('T')[0];
+    const tabla = document.getElementById('tabla-triaje-cuerpo');
+    if (!tabla) return;
+
+    try {
+        const response = await axios.get(`/triaje/listar/${fecha}`);
+        const triajes = response.data;
+        tabla.innerHTML = '';
+
+        triajes.forEach(t => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${t.Hora}</td>
+                <td>${t.DNI_CUI}</td>
+                <td>${t.Paciente}</td>
+                <td>${t.Temperatura}°C</td>
+                <td>${t.Presion_Arterial}</td>
+                <td>${t.Saturacion_O2}%</td>
+                <td>
+                    <button onclick="window.buscarHistorialTriaje('${t.DNI_CUI}')" class="btn-small">Ver Historial</button>
+                </td>
+            `;
+            tabla.appendChild(row);
+        });
+    } catch (error) {
+        console.error("Error listando triajes:", error);
+    }
+}
+window.listarTriajesHoy = listarTriajesHoy;
+
+async function buscarHistorialTriaje(dniInput = null) {
+    const dni = dniInput || document.getElementById('search-triaje-dni')?.value;
+    const contenedor = document.getElementById('historial-triaje-resultado');
+    
+    if (!dni) return alert("Ingrese un DNI");
+
+    try {
+        const response = await axios.get(`/triaje/historial/${dni}`);
+        const datos = response.data.data;
+        
+        let html = `<h3>Historial de ${dni}</h3><table class="table"><thead><tr><th>Fecha</th><th>Temp</th><th>Presión</th><th>Peso</th></tr></thead><tbody>`;
+        datos.forEach(h => {
+            html += `<tr><td>${h.Fecha_Formateada}</td><td>${h.Temperatura}</td><td>${h.Presion_Arterial}</td><td>${h.Peso}kg</td></tr>`;
+        });
+        html += '</tbody></table>';
+        if (contenedor) contenedor.innerHTML = html;
+    } catch (error) {
+        alert("❌ No se encontró historial para este paciente.");
+    }
+}
+window.buscarHistorialTriaje = buscarHistorialTriaje;
 
 /**
  * CU-04: Seleccionar Interfaz de Idioma

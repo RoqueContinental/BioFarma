@@ -44,6 +44,11 @@ Route::post('/pacientes/guardar', [PacienteController::class, 'store']);
 Route::get('/pacientes/buscar/{dni}', [PacienteController::class, 'buscar']);
 Route::post('/pacientes/eliminar', [PacienteController::class, 'destroy']);
 
+// Rutas de Triaje
+Route::post('/triaje/guardar', [PacienteController::class, 'guardarTriaje']);
+Route::get('/triaje/listar/{fecha}', [PacienteController::class, 'listarTriajeFecha']);
+Route::get('/triaje/historial/{dni}', [PacienteController::class, 'historialTriajeDNI']);
+
 // Rutas de Gestión de Usuarios
 Route::get('/usuarios/listar', [UserController::class, 'index']);
 Route::post('/usuarios/guardar', [UserController::class, 'store']);

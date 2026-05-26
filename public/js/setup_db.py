@@ -4,7 +4,10 @@ import sys
 import os
 
 # Importamos la conexión desde la ubicación definida en el contexto
-sys.path.append(os.path.join(os.getcwd(), 'app', 'Http', 'Controllers'))
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(script_dir, '..', '..'))
+controller_path = os.path.join(project_root, 'app', 'Http', 'Controllers')
+sys.path.append(controller_path)
 try:
     from conexion import obtener_conexion, cerrar_conexion
 except ImportError:
@@ -25,9 +28,9 @@ def configurar_base_de_datos():
         tablas = [
             """
             CREATE TABLE IF NOT EXISTS USUARIO (
-                ID_Usuario CHAR(36) NOT NULL,
+                ID_Usuario VARCHAR(50) NOT NULL,
                 Username VARCHAR(50) NOT NULL,
-                Password_Hash VARCHAR(255) NOT NULL,
+                Password VARCHAR(255) NOT NULL,
                 Nombre_Completo VARCHAR(100) NOT NULL,
                 Rol ENUM('admin', 'encargado', 'enfermero') NOT NULL DEFAULT 'enfermero',
                 Estado TINYINT(1) DEFAULT 1,
@@ -71,6 +74,7 @@ def configurar_base_de_datos():
             CREATE TABLE IF NOT EXISTS TRIAJE (
                 ID_Triaje CHAR(36) NOT NULL,
                 ID_Paciente CHAR(36) NOT NULL,
+                ID_Usuario VARCHAR(50) NOT NULL,
                 Fecha_Hora DATETIME DEFAULT CURRENT_TIMESTAMP,
                 Temperatura DECIMAL(4,2),
                 Presion_Arterial VARCHAR(20),
@@ -78,7 +82,8 @@ def configurar_base_de_datos():
                 Frecuencia_Cardiaca INT,
                 Peso DECIMAL(6,2),
                 PRIMARY KEY (ID_Triaje),
-                FOREIGN KEY (ID_Paciente) REFERENCES PACIENTE(ID_Paciente)
+                FOREIGN KEY (ID_Paciente) REFERENCES PACIENTE(ID_Paciente),
+                FOREIGN KEY (ID_Usuario) REFERENCES USUARIO(ID_Usuario)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """,
             """
@@ -218,7 +223,7 @@ def configurar_base_de_datos():
             """
             CREATE PROCEDURE sp_ValidarUsuario(IN p_Username VARCHAR(50))
             BEGIN
-                SELECT ID_Usuario, Username, Password_Hash, Nombre_Completo, Rol, Estado
+                SELECT ID_Usuario, Username, Password, Nombre_Completo, Rol, Estado
                 FROM USUARIO 
                 WHERE Username = p_Username AND Estado = 1;
             END;
@@ -253,14 +258,71 @@ def configurar_base_de_datos():
             BEGIN
                 IF EXISTS (SELECT 1 FROM USUARIO WHERE Username = p_Username) THEN
                     UPDATE USUARIO 
-                    SET Password_Hash = p_Password,
+                    SET Password = p_Password,
                         Nombre_Completo = p_Nombre_Completo,
                         Rol = p_Rol
                     WHERE Username = p_Username;
                 ELSE
-                    INSERT INTO USUARIO (ID_Usuario, Username, Password_Hash, Nombre_Completo, Rol, Estado)
-                    VALUES (UUID(), p_Username, p_Password, p_Nombre_Completo, p_Rol, 1);
+                    INSERT INTO USUARIO (ID_Usuario, Username, Password, Nombre_Completo, Rol, Estado)
+                    VALUES (p_Username, p_Username, p_Password, p_Nombre_Completo, p_Rol, 1);
                 END IF;
+            END;
+            """,
+            # sp_GuardarTriaje
+            "DROP PROCEDURE IF EXISTS sp_GuardarTriaje;",
+            """
+            CREATE PROCEDURE sp_GuardarTriaje(
+                IN p_DNI VARCHAR(20),
+                IN p_Temp DECIMAL(4,2),
+                IN p_Presion VARCHAR(20),
+                IN p_Saturacion DECIMAL(5,2),
+                IN p_FC INT,
+                IN p_Peso DECIMAL(6,2),
+                IN p_ID_Usuario VARCHAR(50)
+            )
+            BEGIN
+                DECLARE v_ID_Paciente CHAR(36);
+                SELECT ID_Paciente INTO v_ID_Paciente FROM PACIENTE WHERE DNI_CUI = p_DNI LIMIT 1;
+                
+                IF v_ID_Paciente IS NOT NULL THEN
+                    INSERT INTO TRIAJE (ID_Triaje, ID_Paciente, ID_Usuario, Temperatura, Presion_Arterial, Saturacion_O2, Frecuencia_Cardiaca, Peso)
+                    VALUES (UUID(), v_ID_Paciente, p_ID_Usuario, p_Temp, p_Presion, p_Saturacion, p_FC, p_Peso);
+                    SELECT 'Registrado' AS Resultado;
+                ELSE
+                    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error: Paciente no encontrado.';
+                END IF;
+            END;
+            """,
+            # sp_ListarTriajePorFecha
+            "DROP PROCEDURE IF EXISTS sp_ListarTriajePorFecha;",
+            """
+            CREATE PROCEDURE sp_ListarTriajePorFecha(IN p_Fecha DATE)
+            BEGIN
+                SELECT 
+                    T.ID_Triaje, 
+                    P.DNI_CUI, 
+                    CONCAT(P.Nombres, ' ', P.Apellidos) as Paciente,
+                    T.Temperatura, 
+                    T.Presion_Arterial, 
+                    T.Saturacion_O2, 
+                    T.Frecuencia_Cardiaca, 
+                    DATE_FORMAT(T.Fecha_Hora, '%H:%i') as Hora
+                FROM TRIAJE T
+                JOIN PACIENTE P ON T.ID_Paciente = P.ID_Paciente
+                WHERE DATE(T.Fecha_Hora) = p_Fecha
+                ORDER BY T.Fecha_Hora DESC;
+            END;
+            """,
+            # sp_BuscarTriajePorDNI
+            "DROP PROCEDURE IF EXISTS sp_BuscarTriajePorDNI;",
+            """
+            CREATE PROCEDURE sp_BuscarTriajePorDNI(IN p_DNI VARCHAR(20))
+            BEGIN
+                SELECT T.*, DATE_FORMAT(T.Fecha_Hora, '%d/%m/%Y %H:%i') as Fecha_Formateada
+                FROM TRIAJE T
+                JOIN PACIENTE P ON T.ID_Paciente = P.ID_Paciente
+                WHERE P.DNI_CUI = p_DNI
+                ORDER BY T.Fecha_Hora DESC;
             END;
             """
         ]

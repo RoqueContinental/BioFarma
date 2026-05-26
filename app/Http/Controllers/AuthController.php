@@ -20,19 +20,20 @@ class AuthController extends Controller
             $userResult = DB::select('CALL sp_ValidarUsuario(?)', [$request->username]);
 
             if (!$userResult || count($userResult) === 0) {
+                Log::warning("Intento de login fallido: Usuario no encontrado -> " . $request->username);
                 return response()->json(['status' => 'error', 'message' => 'Credenciales incorrectas.'], 401);
             }
 
             // DB::select devuelve una colección de objetos stdClass
             $userObj = (array) $userResult[0];
             
-            // Normalizamos las llaves a minúsculas para evitar problemas de Case Sensitivity (Password vs password)
+            // Normalizamos las llaves a minúsculas
             $userArray = array_change_key_case($userObj, CASE_LOWER);
-            $dbPassword = $userArray['password_hash'] ?? null;
+            $dbPassword = $userArray['password'] ?? null;
 
             if ($request->password === $dbPassword) {
                 // Limpiamos datos sensibles antes de enviar al frontend
-                unset($userArray['password_hash'], $userArray['estado']);
+                unset($userArray['password'], $userArray['estado']);
 
                 return response()->json([
                     'status' => 'success',
@@ -40,6 +41,7 @@ class AuthController extends Controller
                     'user' => $userArray
                 ]);
             } else {
+                Log::warning("Intento de login fallido: Contraseña incorrecta para el usuario -> " . $request->username);
                 return response()->json(['status' => 'error', 'message' => 'Credenciales incorrectas.'], 401);
             }
         } catch (\Exception $e) {

@@ -116,4 +116,56 @@ class PacienteController extends Controller
             ], 500);
         }
     }
+
+    public function guardarTriaje(Request $request)
+    {
+        $request->validate([
+            'dni' => 'required|string',
+            'temperatura' => 'required|numeric',
+            'presion' => 'required|string',
+            'saturacion' => 'required|numeric',
+            'fc' => 'required|integer',
+            'peso' => 'required|numeric',
+            'id_usuario' => 'required|string'
+        ]);
+
+        try {
+            DB::select('CALL sp_GuardarTriaje(?, ?, ?, ?, ?, ?, ?)', [
+                $request->dni, $request->temperatura, $request->presion,
+                $request->saturacion, $request->fc, $request->peso, $request->id_usuario
+            ]);
+            return response()->json(['status' => 'success', 'message' => 'Triaje registrado correctamente.']);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function listarTriajeFecha($fecha)
+    {
+        try {
+            $triajes = DB::select('CALL sp_ListarTriajePorFecha(?)', [$fecha]);
+            return response()->json($triajes);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function historialTriajeDNI($dni)
+    {
+        try {
+            $historial = DB::select('CALL sp_BuscarTriajePorDNI(?)', [$dni]);
+            if (empty($historial)) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'No se encontró historial para este DNI'
+                ], 404);
+            }
+            return response()->json([
+                'status' => 'success',
+                'data' => $historial
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+        }
+    }
 }
