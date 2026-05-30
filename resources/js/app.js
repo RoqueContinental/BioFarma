@@ -330,11 +330,17 @@ function showView(viewId) {
         'view-registro': '/pacientes',
         'view-gestion': '/pacientes',
         'view-triaje-registro': '/triaje',
-        'view-triaje-gestion': '/triaje'
+        'view-triaje-gestion': '/triaje',
+        'view-diagnostico-registro': '/diagnostico',
+        'view-diagnostico-gestion': '/diagnostico',
+        'view-vademecum-consulta': '/vademecum',
+        'view-vademecum-gestion': '/vademecum'
     };
 
     if (pageMap[viewId] && currentPath !== pageMap[viewId]) {
-        window.location.href = pageMap[viewId]; return;
+        sessionStorage.setItem('pendingView', viewId);
+        window.location.href = pageMap[viewId]; 
+        return;
     }
 
     // 1. Ocultar todas las vistas
@@ -364,6 +370,31 @@ function showView(viewId) {
         document.getElementById('menu-triaje-gestion')?.classList.add('active-link');
         listarTriajesHoy(); // Carga inicial por defecto
     }
+
+    if (viewId === 'view-diagnostico-registro') {
+        document.getElementById('menu-diagnostico-registro')?.classList.add('active-link');
+    } else if (viewId === 'view-diagnostico-gestion') {
+        document.getElementById('menu-diagnostico-gestion')?.classList.add('active-link');
+    }
+
+    if (viewId === 'view-vademecum-gestion') {
+        listarMedicamentos();
+    }
+
+    // Mantener submenús de Triaje abiertos si estamos en una de sus subvistas
+    const submenus = {
+        'view-triaje': { id: 'submenu-triaje', arrow: 'arrow-triaje' },
+        'view-diagnostico': { id: 'submenu-diagnostico', arrow: 'arrow-diagnostico' },
+        'view-vademecum': { id: 'submenu-vademecum', arrow: 'arrow-vademecum' }
+    };
+
+    const activeSub = Object.keys(submenus).find(key => viewId.startsWith(key));
+    if (activeSub) {
+        const sm = document.getElementById(submenus[activeSub].id);
+        const ar = document.getElementById(submenus[activeSub].arrow);
+        if (sm) sm.style.display = 'flex';
+        if (ar) ar.textContent = '▲';
+    }
     
     if (viewId === 'view-usuarios') {
         listarUsuarios();
@@ -385,8 +416,10 @@ window.showView = showView;
 function toggleSubmenu() {
     const submenu = document.getElementById('submenu-pacientes');
     const arrow = document.getElementById('arrow-pacientes');
+    if (!submenu) return;
     
-    if (submenu.style.display === 'none' || submenu.style.display === '') {
+    const isHidden = window.getComputedStyle(submenu).display === 'none';
+    if (isHidden) {
         submenu.style.display = 'flex';
         arrow.textContent = '▲';
     } else {
@@ -404,7 +437,8 @@ function toggleSubmenuTriaje() {
     const arrow = document.getElementById('arrow-triaje');
     if (!submenu) return;
     
-    if (submenu.style.display === 'none' || submenu.style.display === '') {
+    const isHidden = window.getComputedStyle(submenu).display === 'none';
+    if (isHidden) {
         submenu.style.display = 'flex';
         if (arrow) arrow.textContent = '▲';
     } else {
@@ -413,6 +447,41 @@ function toggleSubmenuTriaje() {
     }
 }
 window.toggleSubmenuTriaje = toggleSubmenuTriaje;
+
+/**
+ * SISTEMA DE MENÚ DESPLEGABLE DIAGNÓSTICO
+ */
+function toggleSubmenuDiagnostico() {
+    const submenu = document.getElementById('submenu-diagnostico');
+    const arrow = document.getElementById('arrow-diagnostico');
+    if (!submenu) return;
+    
+    const isHidden = window.getComputedStyle(submenu).display === 'none';
+    if (isHidden) {
+        submenu.style.display = 'flex';
+        if (arrow) arrow.textContent = '▲';
+    } else {
+        submenu.style.display = 'none';
+        if (arrow) arrow.textContent = '▼';
+    }
+}
+window.toggleSubmenuDiagnostico = toggleSubmenuDiagnostico;
+
+function toggleSubmenuVademecum() {
+    const submenu = document.getElementById('submenu-vademecum');
+    const arrow = document.getElementById('arrow-vademecum');
+    if (!submenu) return;
+    
+    const isHidden = window.getComputedStyle(submenu).display === 'none';
+    if (isHidden) {
+        submenu.style.display = 'flex';
+        if (arrow) arrow.textContent = '▲';
+    } else {
+        submenu.style.display = 'none';
+        if (arrow) arrow.textContent = '▼';
+    }
+}
+window.toggleSubmenuVademecum = toggleSubmenuVademecum;
 
 /**
  * FUNCIONES DE TRIAJE MODULAR
@@ -463,6 +532,8 @@ async function registrarTriaje() {
         const response = await axios.post('/triaje/guardar', datos);
         alert("✅ " + response.data.message);
         document.getElementById('form-triaje')?.reset();
+        // Flujo de trabajo adecuado: Ir a la lista (lectura) tras el registro
+        showView('view-triaje-gestion');
     } catch (error) {
         alert("❌ Error: " + (error.response?.data?.message || "No se pudo registrar el triaje"));
     }
@@ -621,6 +692,82 @@ async function eliminarUsuario(id) {
 }
 window.eliminarUsuario = eliminarUsuario;
 
+/**
+ * MÓDULO: VADEMÉCUM E INVENTARIO
+ */
+async function listarMedicamentos() {
+    const tabla = document.getElementById('tabla-medicamentos-cuerpo');
+    if (!tabla) return;
+
+    tabla.innerHTML = '<tr><td colspan="5" style="text-align:center;">Cargando inventario...</td></tr>';
+
+    try {
+        const response = await axios.get('/medicamentos/listar');
+        const meds = response.data;
+        tabla.innerHTML = '';
+
+        meds.forEach(m => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><strong>${m.Nombre}</strong><br><small>${m.Descripcion || ''}</small></td>
+                <td>${m.Lote}</td>
+                <td><span style="font-weight:bold; color:${m.Stock < 10 ? 'red' : 'inherit'}">${m.Stock}</span></td>
+                <td>${m.Fecha_Vencimiento}</td>
+                <td>
+                    <button onclick='window.prepararEdicionMed(${JSON.stringify(m)})' class="btn-small" style="background:var(--primary); color:white; border:none; padding:5px; border-radius:4px; cursor:pointer;">✏️</button>
+                    <button onclick="window.eliminarMedicamento(${m.ID_Medicamento})" class="btn-small" style="background:#e74c3c; color:white; border:none; padding:5px; border-radius:4px; cursor:pointer;">🗑️</button>
+                </td>
+            `;
+            tabla.appendChild(tr);
+        });
+    } catch (error) {
+        tabla.innerHTML = '<tr><td colspan="5" style="text-align:center; color:red;">Error al conectar con el inventario.</td></tr>';
+    }
+}
+window.listarMedicamentos = listarMedicamentos;
+
+async function guardarMedicamento() {
+    const datos = {
+        id: document.getElementById('med-id').value,
+        nombre: document.getElementById('med-nombre').value,
+        lote: document.getElementById('med-lote-input').value,
+        stock: document.getElementById('med-stock-input').value,
+        descripcion: document.getElementById('med-descripcion').value,
+        vence: document.getElementById('med-vence-input').value
+    };
+
+    try {
+        await axios.post('/medicamentos/guardar', datos);
+        alert("✅ Inventario actualizado correctamente.");
+        document.getElementById('form-medicamento').reset();
+        document.getElementById('med-id').value = "0";
+        listarMedicamentos();
+    } catch (error) {
+        alert("❌ Error al guardar el medicamento.");
+    }
+}
+window.guardarMedicamento = guardarMedicamento;
+
+function prepararEdicionMed(m) {
+    document.getElementById('med-id').value = m.ID_Medicamento;
+    document.getElementById('med-nombre').value = m.Nombre;
+    document.getElementById('med-lote-input').value = m.Lote;
+    document.getElementById('med-stock-input').value = m.Stock;
+    document.getElementById('med-descripcion').value = m.Descripcion;
+    document.getElementById('med-vence-input').value = m.Fecha_Vencimiento;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+window.prepararEdicionMed = prepararEdicionMed;
+
+async function eliminarMedicamento(id) {
+    if (!confirm("¿Está seguro de dar de baja este producto del inventario?")) return;
+    try {
+        await axios.post('/medicamentos/eliminar', { id });
+        listarMedicamentos();
+    } catch (error) { alert("❌ Error al eliminar."); }
+}
+window.eliminarMedicamento = eliminarMedicamento;
+
 // Función para cerrar sesión
 function logout() {
     localStorage.removeItem('loggedInUser'); // Limpiar datos del usuario del almacenamiento local
@@ -639,14 +786,21 @@ window.logout = logout;
 document.addEventListener('DOMContentLoaded', () => {
     console.log("MariFarma Pro Engine v1.0 - Perfil cargado");
     
+    updateUserProfileDisplay();
+
+    // Manejo de vistas pendientes por redirección de página
+    const pendingView = sessionStorage.getItem('pendingView');
+    if (pendingView) {
+        sessionStorage.removeItem('pendingView');
+        showView(pendingView);
+    }
+
     // Actualizar fecha en el perfil (CU-04 / Contexto Regional)
     const dateEl = document.getElementById('current-date');
     if (dateEl) {
         const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
         dateEl.textContent = new Date().toLocaleDateString('es-ES', options);
     }
-    updateUserProfileDisplay(); // Llamar al cargar la página para mostrar el usuario si ya está logeado
-    
     // Si el contenedor del dashboard existe, cargar los pacientes del día automáticamente
     if (document.getElementById('tabla-pacientes-hoy-cuerpo')) {
         listarPacientesHoy();

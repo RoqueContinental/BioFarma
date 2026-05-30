@@ -37,11 +37,11 @@ class PacienteController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'dni' => 'required|string|max:8',
+            'dni' => 'required|string|max:20',
             'nombres' => 'required|string',
             'apellidos' => 'required|string',
             'fechaNacimiento' => 'required|date',
-            'sexo' => 'required|string|max:1',
+            'sexo' => 'required|string',
         ]);
 
         try {
@@ -120,29 +120,32 @@ class PacienteController extends Controller
     public function guardarTriaje(Request $request)
     {
         $request->validate([
-            'dni' => 'required|string',
-            'temperatura' => 'required|numeric',
+            'dni' => 'required|string|max:20',
+            'temp' => 'required|numeric', // Cambiado de temperatura a temp para coincidir con JS
             'presion' => 'required|string',
             'saturacion' => 'required|numeric',
             'fc' => 'required|integer',
             'peso' => 'required|numeric',
-            'id_usuario' => 'required|string'
+            'id_usuario' => 'required'
         ]);
 
         try {
             DB::select('CALL sp_GuardarTriaje(?, ?, ?, ?, ?, ?, ?)', [
-                $request->dni, $request->temperatura, $request->presion,
+                $request->dni, 
+                $request->temp, 
+                $request->presion,
                 $request->saturacion, $request->fc, $request->peso, $request->id_usuario
             ]);
             return response()->json(['status' => 'success', 'message' => 'Triaje registrado correctamente.']);
         } catch (\Exception $e) {
-            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+            return response()->json(['status' => 'error', 'message' => 'Error al guardar triaje: ' . $e->getMessage()], 500);
         }
     }
 
-    public function listarTriajeFecha($fecha)
+    public function listarTriajeFecha(Request $request)
     {
         try {
+            $fecha = $request->query('fecha', date('Y-m-d'));
             $triajes = DB::select('CALL sp_ListarTriajePorFecha(?)', [$fecha]);
             return response()->json($triajes);
         } catch (\Exception $e) {

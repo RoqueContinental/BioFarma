@@ -18,7 +18,7 @@
                 <div class="grid" style="grid-template-columns: 1fr auto auto; gap: 10px;">
                     <input type="text" id="dni-input" name="dni" placeholder="Ingrese DNI" maxlength="8">
                     <button type="button" class="btn" id="btn-reniec" onclick="consultarReniec()">Consultar RENIEC</button>
-                    <button type="button" class="btn" style="background: #6c757d;" onclick="buscarPacienteLocal()">Buscar Local</button>
+                    
                 </div>
             </div>
 
@@ -91,6 +91,7 @@
     <div id="view-gestion" class="view" style="display: none;">
         <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
             <h1>Gestión de Pacientes Locales</h1>
+            <button type="button" class="btn" style="background: var(--primary);" onclick="window.buscarPacienteLocal()">🔍 Buscar DNI</button>
             <input type="text" id="search-paciente" onkeyup="window.filtrarPacientes()" 
                    placeholder="🔍 Buscar por nombre o DNI..." 
                    style="padding: 10px; width: 300px; border-radius: 5px; border: 1px solid #ccc;">

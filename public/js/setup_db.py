@@ -71,31 +71,33 @@ def configurar_base_de_datos():
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """,
             """
-            CREATE TABLE IF NOT EXISTS TRIAJE (
-                ID_Triaje CHAR(36) NOT NULL,
-                ID_Paciente CHAR(36) NOT NULL,
-                ID_Usuario VARCHAR(50) NOT NULL,
-                Fecha_Hora DATETIME DEFAULT CURRENT_TIMESTAMP,
-                Temperatura DECIMAL(4,2),
-                Presion_Arterial VARCHAR(20),
-                Saturacion_O2 DECIMAL(5,2),
-                Frecuencia_Cardiaca INT,
-                Peso DECIMAL(6,2),
-                PRIMARY KEY (ID_Triaje),
-                FOREIGN KEY (ID_Paciente) REFERENCES PACIENTE(ID_Paciente),
-                FOREIGN KEY (ID_Usuario) REFERENCES USUARIO(ID_Usuario)
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+                CREATE TABLE IF NOT EXISTS TRIAJE (
+                    ID_Triaje CHAR(36) NOT NULL,
+                    ID_Paciente CHAR(36) NOT NULL,
+                    ID_Usuario VARCHAR(50) NOT NULL,
+                    Fecha_Hora DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    Temperatura DECIMAL(4,2),
+                    Presion_Arterial VARCHAR(20),
+                    Saturacion_O2 DECIMAL(5,2),
+                    Frecuencia_Cardiaca INT,
+                    Peso DECIMAL(6,2),
+                    PRIMARY KEY (ID_Triaje),
+                    FOREIGN KEY (ID_Paciente) REFERENCES PACIENTE(ID_Paciente),
+                    FOREIGN KEY (ID_Usuario) REFERENCES USUARIO(ID_Usuario)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
             """,
             """
             CREATE TABLE IF NOT EXISTS CONSULTA_IA (
                 ID_Consulta CHAR(36) NOT NULL,
                 ID_Paciente CHAR(36) NOT NULL,
+                ID_Usuario VARCHAR(50) NOT NULL,
                 ID_Triaje CHAR(36),
                 Sintomas_Texto TEXT,
                 Hipotesis_Diagnostica TEXT,
                 Idioma_Uso VARCHAR(10),
                 Fecha_Consulta DATETIME DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (ID_Consulta),
+                FOREIGN KEY (ID_Usuario) REFERENCES USUARIO(ID_Usuario),
                 FOREIGN KEY (ID_Paciente) REFERENCES PACIENTE(ID_Paciente),
                 FOREIGN KEY (ID_Triaje) REFERENCES TRIAJE(ID_Triaje)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -306,9 +308,11 @@ def configurar_base_de_datos():
                     T.Presion_Arterial, 
                     T.Saturacion_O2, 
                     T.Frecuencia_Cardiaca, 
-                    DATE_FORMAT(T.Fecha_Hora, '%H:%i') as Hora
+                    DATE_FORMAT(T.Fecha_Hora, '%H:%i') as Hora,
+                    U.Nombre_Completo as Atendido_Por
                 FROM TRIAJE T
                 JOIN PACIENTE P ON T.ID_Paciente = P.ID_Paciente
+                JOIN USUARIO U ON T.ID_Usuario = U.ID_Usuario
                 WHERE DATE(T.Fecha_Hora) = p_Fecha
                 ORDER BY T.Fecha_Hora DESC;
             END;
@@ -318,11 +322,65 @@ def configurar_base_de_datos():
             """
             CREATE PROCEDURE sp_BuscarTriajePorDNI(IN p_DNI VARCHAR(20))
             BEGIN
-                SELECT T.*, DATE_FORMAT(T.Fecha_Hora, '%d/%m/%Y %H:%i') as Fecha_Formateada
+                SELECT T.*, 
+                       DATE_FORMAT(T.Fecha_Hora, '%d/%m/%Y %H:%i') as Fecha_Formateada,
+                       U.Nombre_Completo as Personal_Salud
                 FROM TRIAJE T
                 JOIN PACIENTE P ON T.ID_Paciente = P.ID_Paciente
+                JOIN USUARIO U ON T.ID_Usuario = U.ID_Usuario
                 WHERE P.DNI_CUI = p_DNI
                 ORDER BY T.Fecha_Hora DESC;
+            END;
+            """,
+            # sp_ListarMedicamentos (Con stock consolidado)
+            "DROP PROCEDURE IF EXISTS sp_ListarMedicamentos;",
+            """
+            CREATE PROCEDURE sp_ListarMedicamentos()
+            BEGIN
+                SELECT 
+                    M.ID_Medicamento, 
+                    M.Nombre_Generico, 
+                    M.Concentracion, 
+                    COALESCE(L.Codigo_Lote, 'S/L') as Lote,
+                    COALESCE(L.Cantidad_Actual, 0) as Stock,
+                    L.Fecha_Vencimiento
+                FROM MEDICAMENTO M
+                LEFT JOIN LOTE_STOCK L ON M.ID_Medicamento = L.ID_Medicamento
+                WHERE M.Estado = 1
+                ORDER BY M.Nombre_Generico ASC;
+            END;
+            """,
+            # sp_GuardarMedicamento
+            "DROP PROCEDURE IF EXISTS sp_GuardarMedicamento;",
+            """
+            CREATE PROCEDURE sp_GuardarMedicamento(
+                IN p_ID CHAR(36),
+                IN p_Nombre VARCHAR(255),
+                IN p_Concentracion VARCHAR(100),
+                IN p_Presentacion VARCHAR(100),
+                IN p_Stock_Min INT
+            )
+            BEGIN
+                IF p_ID IS NOT NULL AND EXISTS (SELECT 1 FROM MEDICAMENTO WHERE ID_Medicamento = p_ID) THEN
+                    UPDATE MEDICAMENTO 
+                    SET Nombre_Generico = p_Nombre, 
+                        Concentracion = p_Concentracion,
+                        Presentacion = p_Presentacion,
+                        Stock_Minimo = p_Stock_Min
+                    WHERE ID_Medicamento = p_ID;
+                ELSE
+                    INSERT INTO MEDICAMENTO (ID_Medicamento, Codigo_Barras, Nombre_Generico, Nombre_Comercial, Concentracion, Presentacion, Stock_Minimo, Estado)
+                    VALUES (UUID(), UUID(), p_Nombre, p_Nombre, p_Concentracion, p_Presentacion, p_Stock_Min, 1);
+                END IF;
+            END;
+            """,
+            # sp_EliminarMedicamento
+            "DROP PROCEDURE IF EXISTS sp_EliminarMedicamento;",
+            """
+            CREATE PROCEDURE sp_EliminarMedicamento(IN p_ID CHAR(36))
+            BEGIN
+                UPDATE MEDICAMENTO SET Estado = 0 WHERE ID_Medicamento = p_ID;
+                SELECT 'Medicamento desactivado' AS Resultado;
             END;
             """
         ]

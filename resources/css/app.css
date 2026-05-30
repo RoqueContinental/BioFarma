@@ -146,6 +146,18 @@ nav li a {
 nav li:hover, nav li.active-link { background: rgba(255,255,255,0.15); border-left: 4px solid var(--secondary); }
 nav li.active-link a { color: var(--secondary); }
 
+/* Estilos para Submenús Desplegables (Triaje, Pacientes y Diagnóstico) */
+#submenu-pacientes, #submenu-triaje, #submenu-diagnostico {
+    flex-direction: column;
+    background: rgba(0, 0, 0, 0.1);
+    display: none; /* Oculto por defecto, se activa por JS */
+}
+#submenu-pacientes li a, #submenu-triaje li a {
+    padding-left: 35px;
+    font-size: 0.9rem;
+    border-bottom: none;
+}
+
 /* Main Content */
 main { flex-grow: 1; padding: 2rem; overflow-y: auto; }
 .view { display: none; }
