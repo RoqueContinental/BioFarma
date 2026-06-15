@@ -32,7 +32,7 @@ def configurar_base_de_datos():
                 Username VARCHAR(50) NOT NULL,
                 Password VARCHAR(255) NOT NULL,
                 Nombre_Completo VARCHAR(100) NOT NULL,
-                Rol ENUM('admin', 'encargado', 'enfermero') NOT NULL DEFAULT 'enfermero',
+                Rol ENUM('admin', 'tecnico', 'enfermero') NOT NULL DEFAULT 'enfermero',
                 Estado TINYINT(1) DEFAULT 1,
                 PRIMARY KEY (ID_Usuario),
                 UNIQUE (Username)
@@ -65,6 +65,8 @@ def configurar_base_de_datos():
                 Concentracion VARCHAR(100) NOT NULL,
                 Presentacion VARCHAR(100) NOT NULL,
                 Stock_Minimo INT DEFAULT 0,
+                Stock_Actual INT DEFAULT 0,
+                Fecha_Vencimiento DATE,
                 Estado TINYINT(1) DEFAULT 1,
                 PRIMARY KEY (ID_Medicamento),
                 UNIQUE (Codigo_Barras)
@@ -188,8 +190,9 @@ def configurar_base_de_datos():
                     WHERE DNI_CUI = p_DNI_CUI;
                     SELECT 'Actualizado' AS Resultado;
                 ELSE
+                    /* Usamos el DNI como ID Plano para facilitar pruebas */
                     INSERT INTO PACIENTE (ID_Paciente, DNI_CUI, Nombres, Apellidos, Fecha_Nacimiento, Sexo, Direccion, Telefono, Alergias_Cronicas, Estado)
-                    VALUES (UUID(), p_DNI_CUI, p_Nombres, p_Apellidos, p_Fecha_Nacimiento, p_Sexo, p_Direccion, p_Telefono, p_Alergias_Cronicas, 1);
+                    VALUES (p_DNI_CUI, p_DNI_CUI, p_Nombres, p_Apellidos, p_Fecha_Nacimiento, p_Sexo, p_Direccion, p_Telefono, p_Alergias_Cronicas, 1);
                     SELECT 'Registrado' AS Resultado;
                 END IF;
             END;
@@ -255,7 +258,7 @@ def configurar_base_de_datos():
                 IN p_Username VARCHAR(50),
                 IN p_Password VARCHAR(255),
                 IN p_Nombre_Completo VARCHAR(100),
-                IN p_Rol ENUM('admin', 'encargado', 'enfermero')
+                IN p_Rol ENUM('admin', 'tecnico', 'enfermero')
             )
             BEGIN
                 IF EXISTS (SELECT 1 FROM USUARIO WHERE Username = p_Username) THEN
@@ -283,12 +286,14 @@ def configurar_base_de_datos():
                 IN p_ID_Usuario VARCHAR(50)
             )
             BEGIN
-                DECLARE v_ID_Paciente CHAR(36);
+                DECLARE v_ID_Paciente VARCHAR(50);
+                DECLARE v_ID_Triaje VARCHAR(50);
                 SELECT ID_Paciente INTO v_ID_Paciente FROM PACIENTE WHERE DNI_CUI = p_DNI LIMIT 1;
+                SET v_ID_Triaje = CONCAT('TR-', p_DNI, '-', DATE_FORMAT(NOW(), '%y%m%d%H%i%s'));
                 
                 IF v_ID_Paciente IS NOT NULL THEN
                     INSERT INTO TRIAJE (ID_Triaje, ID_Paciente, ID_Usuario, Temperatura, Presion_Arterial, Saturacion_O2, Frecuencia_Cardiaca, Peso)
-                    VALUES (UUID(), v_ID_Paciente, p_ID_Usuario, p_Temp, p_Presion, p_Saturacion, p_FC, p_Peso);
+                    VALUES (v_ID_Triaje, v_ID_Paciente, p_ID_Usuario, p_Temp, p_Presion, p_Saturacion, p_FC, p_Peso);
                     SELECT 'Registrado' AS Resultado;
                 ELSE
                     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error: Paciente no encontrado.';
@@ -303,11 +308,11 @@ def configurar_base_de_datos():
                 SELECT 
                     T.ID_Triaje, 
                     P.DNI_CUI, 
-                    CONCAT(P.Nombres, ' ', P.Apellidos) as Paciente,
-                    T.Temperatura, 
+                    CONCAT(P.Nombres, ' ', P.Apellidos) AS Paciente,
+                    T.Temperatura,
                     T.Presion_Arterial, 
-                    T.Saturacion_O2, 
-                    T.Frecuencia_Cardiaca, 
+                    T.Saturacion_O2 AS Saturacion,
+                    T.Frecuencia_Cardiaca AS FC,
                     DATE_FORMAT(T.Fecha_Hora, '%H:%i') as Hora,
                     U.Nombre_Completo as Atendido_Por
                 FROM TRIAJE T
@@ -338,16 +343,18 @@ def configurar_base_de_datos():
             CREATE PROCEDURE sp_ListarMedicamentos()
             BEGIN
                 SELECT 
-                    M.ID_Medicamento, 
-                    M.Nombre_Generico, 
-                    M.Concentracion, 
-                    COALESCE(L.Codigo_Lote, 'S/L') as Lote,
-                    COALESCE(L.Cantidad_Actual, 0) as Stock,
-                    L.Fecha_Vencimiento
-                FROM MEDICAMENTO M
-                LEFT JOIN LOTE_STOCK L ON M.ID_Medicamento = L.ID_Medicamento
-                WHERE M.Estado = 1
-                ORDER BY M.Nombre_Generico ASC;
+                    ID_Medicamento,
+                    Codigo_Barras,
+                    Nombre_Generico,
+                    Nombre_Comercial,
+                    Concentracion,
+                    Presentacion,
+                    Stock_Actual AS Stock,
+                    Fecha_Vencimiento,
+                    Estado
+                FROM MEDICAMENTO
+                WHERE Estado = 1
+                ORDER BY Nombre_Generico ASC;
             END;
             """,
             # sp_GuardarMedicamento
@@ -355,22 +362,28 @@ def configurar_base_de_datos():
             """
             CREATE PROCEDURE sp_GuardarMedicamento(
                 IN p_ID CHAR(36),
-                IN p_Nombre VARCHAR(255),
+                IN p_Codigo_Barras VARCHAR(50),
+                IN p_Nombre_Generico VARCHAR(255),
+                IN p_Nombre_Comercial VARCHAR(255),
                 IN p_Concentracion VARCHAR(100),
                 IN p_Presentacion VARCHAR(100),
-                IN p_Stock_Min INT
+                IN p_Stock_Actual INT,
+                IN p_Fecha_Vence DATE
             )
             BEGIN
-                IF p_ID IS NOT NULL AND EXISTS (SELECT 1 FROM MEDICAMENTO WHERE ID_Medicamento = p_ID) THEN
+                IF p_ID IS NOT NULL AND p_ID <> '' AND p_ID <> '0' AND EXISTS (SELECT 1 FROM MEDICAMENTO WHERE ID_Medicamento = p_ID) THEN
                     UPDATE MEDICAMENTO 
-                    SET Nombre_Generico = p_Nombre, 
+                    SET Codigo_Barras = p_Codigo_Barras,
+                        Nombre_Generico = p_Nombre_Generico, 
+                        Nombre_Comercial = p_Nombre_Comercial,
                         Concentracion = p_Concentracion,
                         Presentacion = p_Presentacion,
-                        Stock_Minimo = p_Stock_Min
+                        Stock_Actual = p_Stock_Actual,
+                        Fecha_Vencimiento = p_Fecha_Vence
                     WHERE ID_Medicamento = p_ID;
                 ELSE
-                    INSERT INTO MEDICAMENTO (ID_Medicamento, Codigo_Barras, Nombre_Generico, Nombre_Comercial, Concentracion, Presentacion, Stock_Minimo, Estado)
-                    VALUES (UUID(), UUID(), p_Nombre, p_Nombre, p_Concentracion, p_Presentacion, p_Stock_Min, 1);
+                    INSERT INTO MEDICAMENTO (ID_Medicamento, Codigo_Barras, Nombre_Generico, Nombre_Comercial, Concentracion, Presentacion, Stock_Minimo, Stock_Actual, Fecha_Vencimiento, Estado)
+                    VALUES (CONCAT('M-', FLOOR(RAND()*899999)+100000), p_Codigo_Barras, p_Nombre_Generico, p_Nombre_Comercial, p_Concentracion, p_Presentacion, 10, p_Stock_Actual, p_Fecha_Vence, 1);
                 END IF;
             END;
             """,
@@ -381,6 +394,19 @@ def configurar_base_de_datos():
             BEGIN
                 UPDATE MEDICAMENTO SET Estado = 0 WHERE ID_Medicamento = p_ID;
                 SELECT 'Medicamento desactivado' AS Resultado;
+            END;
+            """,
+            # sp_BuscarMedicamento
+            "DROP PROCEDURE IF EXISTS sp_BuscarMedicamento;",
+            """
+            CREATE PROCEDURE sp_BuscarMedicamento(IN p_Criterio VARCHAR(255))
+            BEGIN
+                SELECT * FROM MEDICAMENTO 
+                WHERE ID_Medicamento = p_Criterio 
+                   OR Codigo_Barras = p_Criterio 
+                   OR Nombre_Generico LIKE CONCAT('%', p_Criterio, '%') 
+                   OR Nombre_Comercial LIKE CONCAT('%', p_Criterio, '%')
+                LIMIT 1;
             END;
             """
         ]

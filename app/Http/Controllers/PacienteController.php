@@ -98,6 +98,14 @@ class PacienteController extends Controller
 
     public function destroy(Request $request)
     {
+        // Restricción: Solo Admin y Tecnico pueden dar de baja registros
+        if (!in_array(session('user_role'), ['admin', 'tecnico'])) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Su rol no tiene permisos para eliminar o desactivar pacientes.'
+            ], 403);
+        }
+
         $request->validate(['dni' => 'required|string']);
 
         try {
@@ -117,58 +125,33 @@ class PacienteController extends Controller
         }
     }
 
-    public function guardarTriaje(Request $request)
+    /**
+     * Dispara el análisis de IA llamando al motor de Python.
+     */
+    public function procesarAnalisisIA(Request $request)
     {
         $request->validate([
-            'dni' => 'required|string|max:20',
-            'temp' => 'required|numeric', // Cambiado de temperatura a temp para coincidir con JS
-            'presion' => 'required|string',
-            'saturacion' => 'required|numeric',
-            'fc' => 'required|integer',
-            'peso' => 'required|numeric',
-            'id_usuario' => 'required'
+            'dni' => 'required|string',
+            'sintomas' => 'required|string'
         ]);
 
         try {
-            DB::select('CALL sp_GuardarTriaje(?, ?, ?, ?, ?, ?, ?)', [
-                $request->dni, 
-                $request->temp, 
-                $request->presion,
-                $request->saturacion, $request->fc, $request->peso, $request->id_usuario
-            ]);
-            return response()->json(['status' => 'success', 'message' => 'Triaje registrado correctamente.']);
-        } catch (\Exception $e) {
-            return response()->json(['status' => 'error', 'message' => 'Error al guardar triaje: ' . $e->getMessage()], 500);
-        }
-    }
+            // Ejemplo de invocación al script de Python que conecta con Gemini
+            // El script debería leer el triaje más reciente de la DB y generar la consulta
+            $dni = $request->dni;
+            $sintomas = escapeshellarg($request->sintomas);
+            
+            // Comando para ejecutar el motor de IA (ajustar ruta según entorno)
+            $command = "python " . base_path('app/AI/motor_gemini.py') . " --dni $dni --sintomas $sintomas";
+            $output = shell_exec($command);
 
-    public function listarTriajeFecha(Request $request)
-    {
-        try {
-            $fecha = $request->query('fecha', date('Y-m-d'));
-            $triajes = DB::select('CALL sp_ListarTriajePorFecha(?)', [$fecha]);
-            return response()->json($triajes);
-        } catch (\Exception $e) {
-            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
-        }
-    }
-
-    public function historialTriajeDNI($dni)
-    {
-        try {
-            $historial = DB::select('CALL sp_BuscarTriajePorDNI(?)', [$dni]);
-            if (empty($historial)) {
-                return response()->json([
-                    'status' => 'error',
-                    'message' => 'No se encontró historial para este DNI'
-                ], 404);
-            }
             return response()->json([
                 'status' => 'success',
-                'data' => $historial
+                'message' => 'Análisis de IA solicitado correctamente.',
+                'result' => json_decode($output)
             ]);
         } catch (\Exception $e) {
-            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+            return response()->json(['status' => 'error', 'message' => 'Error al invocar motor de IA.'], 500);
         }
     }
 }

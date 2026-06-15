@@ -28,9 +28,9 @@ Route::prefix('pacientes')->group(function () {
 
 // Gestión de Triaje
 Route::prefix('triaje')->group(function () {
-    Route::get('/listar', [PacienteController::class, 'listarTriajeFecha']);
-    Route::post('/guardar', [PacienteController::class, 'guardarTriaje']);
-    Route::get('/historial/{dni}', [PacienteController::class, 'historialTriajeDNI']);
+    Route::get('/listar', [TriajeController::class, 'index']);
+    Route::post('/guardar', [TriajeController::class, 'store']);
+    Route::get('/historial/{dni}', [TriajeController::class, 'historial']);
 });
 
 // Gestión de Vademécum / Medicamentos

@@ -30,7 +30,7 @@
             </div>
             <div class="field-box">
                 <label>Saturación O2 (%):</label>
-                <input type="number" id="triaje-sat" placeholder="98" required>
+                <input type="number" id="triaje-saturacion" placeholder="98" required>
             </div>
             <div class="field-box">
                 <label>Frecuencia Cardíaca (LPM):</label>

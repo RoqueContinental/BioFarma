@@ -35,6 +35,10 @@ class AuthController extends Controller
                 // Limpiamos datos sensibles antes de enviar al frontend
                 unset($userArray['password'], $userArray['estado']);
 
+                // Persistimos el rol en la sesión para validación de permisos en el backend
+                session(['user_role' => $userArray['rol']]);
+                session(['user_id' => $userArray['id_usuario']]);
+
                 return response()->json([
                     'status' => 'success',
                     'message' => 'Inicio de sesión exitoso.',
@@ -56,7 +60,7 @@ class AuthController extends Controller
 
     public function logout(Request $request)
     {
-        
+        $request->session()->flush();
         return response()->json(['status' => 'success', 'message' => 'Sesión cerrada.']);
     }
 }

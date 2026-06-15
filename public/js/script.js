@@ -245,15 +245,19 @@ async function listarMedicamentos() {
 
         meds.forEach(m => {
             const tr = document.createElement('tr');
+            const nomGen = m.Nombre_Generico || m.NOMBRE_GENERICO || m.nombre_generico || '';
+            const nomCom = m.Nombre_Comercial || m.NOMBRE_COMERCIAL || m.nombre_comercial || '';
+            const conc = m.Concentracion || m.CONCENTRACION || '';
+
             tr.innerHTML = `
-                <td>${m.Nombre_Generico}</td>
-                <td>${m.Concentracion}</td>
-                <td>${m.Lote || 'N/A'}</td>
-                <td>${m.Stock}</td>
-                <td>${m.Fecha_Vencimiento || '-'}</td>
+                <td><strong>${nomGen}</strong> <small style="color:#666;">(${nomCom})</small><br>
+                    <small>${conc}</small></td>
+                <td>${m.Presentacion || m.PRESENTACION || ''}</td>
+                <td><span style="font-weight:bold; color:${(m.Stock || m.STOCK || m.stock || 0) < 10 ? 'red' : 'inherit'}">${m.Stock || m.STOCK || m.stock || 0}</span></td>
+                <td>${m.Fecha_Vencimiento || m.FECHA_VENCIMIENTO || m.fecha_vencimiento || '-'}</td>
                 <td>
-                    <button class="btn-small" onclick='window.prepararEdicionMed(${JSON.stringify(m)})'>✏️</button>
-                    <button onclick="window.eliminarMedicamento(${m.ID_Medicamento})">🗑️</button>
+                    <button class="btn-small" onclick='window.prepararEdicionMed(${JSON.stringify(m).replace(/'/g, "&apos;")})' title="Editar">✏️</button>
+                    <button onclick="window.eliminarMedicamento('${m.ID_Medicamento || m.ID_MEDICAMENTO || m.id_medicamento}')">🗑️</button>
                 </td>`;
             tabla.appendChild(tr);
         });
@@ -384,26 +388,42 @@ window.prepararEdicion = prepararEdicion;
 /**
  * ELIMINAR PACIENTE (Baja Lógica)
  */
-async function eliminarPaciente(dni) {
-    if (!confirm(`¿Está seguro de desactivar al paciente con DNI ${dni}? Esta acción quedará registrada en la auditoría.`)) return;
+async function eliminarMedicamento(id) {
+    if (!confirm("⚠️ ADVERTENCIA: ¿Está seguro de dar de baja este medicamento?\n\nEl registro permanecerá en el sistema para fines de auditoría histórica, pero ya no aparecerá en el inventario activo ni podrá ser recetado.")) return;
     
     try {
-        const response = await fetch('/pacientes/eliminar', {
+        const response = await fetch('/medicamentos/eliminar', {
             method: 'POST',
             headers: { 
                 'Content-Type': 'application/json',
                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content')
             },
-            body: JSON.stringify({ dni })
+            body: JSON.stringify({ id })
         });
 
         if (response.ok) {
-            alert("Paciente desactivado correctamente.");
-            listarPacientes();
+            alert("Medicamento dado de baja correctamente.");
+            listarMedicamentos();
         }
     } catch (e) { console.error("Error al eliminar:", e); }
 }
-window.eliminarPaciente = eliminarPaciente;
+window.eliminarMedicamento = eliminarMedicamento;
+
+function prepararEdicionMed(m) {
+    // Normalización de ID para asegurar que se capture sin importar el case de la BD
+    document.getElementById('med-id').value = m.ID_Medicamento || m.ID_MEDICAMENTO || m.id_medicamento || 0;
+    document.getElementById('med-barras').value = m.Codigo_Barras || m.CODIGO_BARRAS || m.codigo_barras || '';
+    document.getElementById('med-nombre-generico').value = m.Nombre_Generico || m.NOMBRE_GENERICO || m.nombre_generico || '';
+    document.getElementById('med-nombre-comercial').value = m.Nombre_Comercial || m.NOMBRE_COMERCIAL || m.nombre_comercial || '';
+    // Regex corregida para permitir puntos decimales en la concentración
+    const conc = m.Concentracion || m.CONCENTRACION || m.concentracion || '';
+    document.getElementById('med-concentracion').value = conc.toString().replace(/[^0-9.]/g, '');
+    document.getElementById('med-presentacion').value = m.Presentacion || m.PRESENTACION || m.presentacion || 'Tableta';
+    document.getElementById('med-stock-input').value = m.Stock || m.STOCK || m.stock || 0;
+    document.getElementById('med-vence-input').value = m.Fecha_Vencimiento || m.FECHA_VENCIMIENTO || m.fecha_vencimiento || '';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+window.prepararEdicionMed = prepararEdicionMed;
 
 /**
  * LISTAR TRIAJES (Hoy)
@@ -421,12 +441,13 @@ async function listarTriajes() {
 
         triajes.forEach(t => {
             const tr = document.createElement('tr');
+            // Fallback para nombres de columnas en MySQL
             tr.innerHTML = `
-                <td>${t.Hora}</td>
-                <td><strong>${t.DNI_CUI}</strong><br>${t.Paciente}</td>
-                <td>${t.Temperatura}°C</td>
-                <td>${t.Presion_Arterial}</td>
-                <td><small>${t.Atendido_Por}</small></td>`;
+                <td>${t.Hora || t.HORA || '-'}</td>
+                <td><strong>${t.DNI_CUI || t.dni_cui || t.DNI || ''}</strong><br>${t.Paciente || t.PACIENTE || ''}</td>
+                <td>${t.Temperatura || t.TEMPERATURA || '-'}°C</td>
+                <td>${t.Presion_Arterial || t.PRESION_ARTERIAL || '-'}</td>
+                <td><small>${t.Atendido_Por || t.ATENDIDO_POR || '-'}</small></td>`;
             tabla.appendChild(tr);
         });
     } catch (e) { console.error("Error al listar triajes:", e); }
@@ -436,32 +457,86 @@ window.listarTriajes = listarTriajes;
 /**
  * BUSCAR EN VADEMECUM (Para el botón faltante)
  */
-function buscarMedicamento() {
-    const query = document.getElementById('search-vademecum')?.value.toLowerCase();
+async function buscarMedicamento() {
+    const query = document.getElementById('search-vademecum')?.value.trim();
+    if (!query) return;
+
+    // Filtrado visual preventivo
     const rows = document.querySelectorAll('#tabla-medicamentos-cuerpo tr');
     rows.forEach(row => {
         const text = row.innerText.toLowerCase();
-        row.style.display = text.includes(query) ? '' : 'none';
+        row.style.display = text.includes(query.toLowerCase()) ? '' : 'none';
     });
+
+    try {
+        const response = await fetch(`/medicamentos/buscar/${query}`);
+        const res = await response.json();
+        if (response.ok && res.status === 'success') {
+            prepararEdicionMed(res.data);
+        }
+    } catch (e) { console.error(e); }
 }
 window.buscarMedicamento = buscarMedicamento;
+
+/**
+ * INTEGRACIÓN CON IA: Sugerir consulta a Gemini
+ */
+async function consultarGeminiMedicamento() {
+    const nombre = document.getElementById('med-nombre-generico')?.value;
+    if (!nombre) {
+        alert("⚠️ Por favor, busque o seleccione un medicamento primero.");
+        return;
+    }
+
+    const promptPredeterminado = `Dime las contraindicaciones principales, efectos secundarios y dosis sugerida para adultos de ${nombre} en formato breve para personal de salud.`;
+    
+    if (confirm(`🤖 ¿Desea consultar a la IA sobre: ${nombre}?\n\nPrompt: "${promptPredeterminado}"`)) {
+        alert("🚀 Función de IA en fase de desarrollo. Pronto verás aquí la información clínica detallada.");
+    }
+}
+window.consultarGeminiMedicamento = consultarGeminiMedicamento;
 
 async function guardarMedicamento() {
     const id = document.getElementById('med-id').value;
     const body = {
         id,
-        nombre: document.getElementById('med-nombre').value,
-        lote: document.getElementById('med-lote-input').value,
+        codigo_barras: document.getElementById('med-barras').value,
+        nombre_generico: document.getElementById('med-nombre-generico').value,
+        nombre_comercial: document.getElementById('med-nombre-comercial').value,
+        concentracion: document.getElementById('med-concentracion').value,
+        presentacion: document.getElementById('med-presentacion').value,
         stock: document.getElementById('med-stock-input').value,
-        descripcion: document.getElementById('med-descripcion').value,
         vence: document.getElementById('med-vence-input').value
     };
-    await fetch('/medicamentos/guardar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
-        body: JSON.stringify(body)
-    });
-    listarMedicamentos();
+    
+    try {
+        const response = await fetch('/medicamentos/guardar', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json', 
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content 
+            },
+            body: JSON.stringify(body)
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+            alert("✅ " + (data.message || "Inventario actualizado correctamente."));
+            document.getElementById('form-medicamento')?.reset();
+            document.getElementById('med-id').value = "0";
+            listarMedicamentos();
+        } else if (response.status === 422) {
+            // Manejo de errores de validación (campos requeridos)
+            const errores = Object.values(data.errors).flat().join('\n');
+            alert("⚠️ Por favor complete los campos correctamente:\n\n" + errores);
+        } else {
+            alert("❌ Error: " + (data.message || "No se pudo guardar el medicamento."));
+        }
+    } catch (error) {
+        console.error("Error al guardar:", error);
+        alert("❌ Error de red o servidor.");
+    }
 }
 window.guardarMedicamento = guardarMedicamento;
 
@@ -518,7 +593,7 @@ async function guardarTriaje() {
     
     const user = JSON.parse(userStr);
     const temp = document.getElementById('triaje-temp')?.value;
-    
+
     if (temp && parseFloat(temp) > 38) {
         if (!confirm("Se ha detectado fiebre alta. ¿Desea continuar con el registro?")) return;
     }
@@ -528,7 +603,7 @@ async function guardarTriaje() {
         temp: temp,
         presion: document.getElementById('triaje-presion')?.value,
         saturacion: document.getElementById('triaje-saturacion')?.value,
-        fc: document.getElementById('triaje-fc')?.value,
+        fc: document.getElementById('triaje-fc')?.value || document.getElementById('triaje-frecuencia')?.value,
         peso: document.getElementById('triaje-peso')?.value,
         id_usuario: user.id_usuario // Vinculación con el usuario en sesión (normalizado a minúsculas)
     };
