@@ -83,6 +83,7 @@ def configurar_base_de_datos():
                     Saturacion_O2 DECIMAL(5,2),
                     Frecuencia_Cardiaca INT,
                     Peso DECIMAL(6,2),
+                    Notas_Observaciones TEXT,
                     PRIMARY KEY (ID_Triaje),
                     FOREIGN KEY (ID_Paciente) REFERENCES PACIENTE(ID_Paciente),
                     FOREIGN KEY (ID_Usuario) REFERENCES USUARIO(ID_Usuario)
@@ -255,21 +256,23 @@ def configurar_base_de_datos():
             "DROP PROCEDURE IF EXISTS sp_GuardarUsuario;",
             """
             CREATE PROCEDURE sp_GuardarUsuario(
+                IN p_ID_Usuario VARCHAR(50),
                 IN p_Username VARCHAR(50),
                 IN p_Password VARCHAR(255),
                 IN p_Nombre_Completo VARCHAR(100),
                 IN p_Rol ENUM('admin', 'tecnico', 'enfermero')
             )
             BEGIN
-                IF EXISTS (SELECT 1 FROM USUARIO WHERE Username = p_Username) THEN
+                IF EXISTS (SELECT 1 FROM USUARIO WHERE ID_Usuario = p_ID_Usuario) THEN
                     UPDATE USUARIO 
-                    SET Password = p_Password,
+                    SET Username = p_Username,
+                        Password = p_Password,
                         Nombre_Completo = p_Nombre_Completo,
                         Rol = p_Rol
-                    WHERE Username = p_Username;
+                    WHERE ID_Usuario = p_ID_Usuario;
                 ELSE
                     INSERT INTO USUARIO (ID_Usuario, Username, Password, Nombre_Completo, Rol, Estado)
-                    VALUES (p_Username, p_Username, p_Password, p_Nombre_Completo, p_Rol, 1);
+                    VALUES (p_ID_Usuario, p_Username, p_Password, p_Nombre_Completo, p_Rol, 1);
                 END IF;
             END;
             """,
@@ -283,6 +286,7 @@ def configurar_base_de_datos():
                 IN p_Saturacion DECIMAL(5,2),
                 IN p_FC INT,
                 IN p_Peso DECIMAL(6,2),
+                IN p_Notas TEXT,
                 IN p_ID_Usuario VARCHAR(50)
             )
             BEGIN
@@ -292,8 +296,8 @@ def configurar_base_de_datos():
                 SET v_ID_Triaje = CONCAT('TR-', p_DNI, '-', DATE_FORMAT(NOW(), '%y%m%d%H%i%s'));
                 
                 IF v_ID_Paciente IS NOT NULL THEN
-                    INSERT INTO TRIAJE (ID_Triaje, ID_Paciente, ID_Usuario, Temperatura, Presion_Arterial, Saturacion_O2, Frecuencia_Cardiaca, Peso)
-                    VALUES (v_ID_Triaje, v_ID_Paciente, p_ID_Usuario, p_Temp, p_Presion, p_Saturacion, p_FC, p_Peso);
+                    INSERT INTO TRIAJE (ID_Triaje, ID_Paciente, ID_Usuario, Temperatura, Presion_Arterial, Saturacion_O2, Frecuencia_Cardiaca, Peso, Notas_Observaciones)
+                    VALUES (v_ID_Triaje, v_ID_Paciente, p_ID_Usuario, p_Temp, p_Presion, p_Saturacion, p_FC, p_Peso, p_Notas);
                     SELECT 'Registrado' AS Resultado;
                 ELSE
                     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error: Paciente no encontrado.';
@@ -313,6 +317,8 @@ def configurar_base_de_datos():
                     T.Presion_Arterial, 
                     T.Saturacion_O2 AS Saturacion,
                     T.Frecuencia_Cardiaca AS FC,
+                    T.Peso,
+                    T.Notas_Observaciones,
                     DATE_FORMAT(T.Fecha_Hora, '%H:%i') as Hora,
                     U.Nombre_Completo as Atendido_Por
                 FROM TRIAJE T
@@ -408,6 +414,213 @@ def configurar_base_de_datos():
                    OR Nombre_Comercial LIKE CONCAT('%', p_Criterio, '%')
                 LIMIT 1;
             END;
+            """,
+            # sp_BuscarTriajeReciente
+            "DROP PROCEDURE IF EXISTS sp_BuscarTriajeReciente;",
+            """
+            CREATE PROCEDURE sp_BuscarTriajeReciente(IN p_DNI VARCHAR(20))
+            BEGIN
+                SELECT T.ID_Triaje, T.Temperatura, T.Presion_Arterial, T.Saturacion_O2, T.Frecuencia_Cardiaca, T.Peso, T.Notas_Observaciones, T.Fecha_Hora,
+                       P.ID_Paciente, CONCAT(P.Nombres, ' ', P.Apellidos) AS Paciente, P.Alergias_Cronicas
+                FROM TRIAJE T
+                JOIN PACIENTE P ON T.ID_Paciente = P.ID_Paciente
+                WHERE P.DNI_CUI = p_DNI
+                ORDER BY T.Fecha_Hora DESC
+                LIMIT 1;
+            END;
+            """,
+            # sp_BuscarUltimos3Triajes
+            "DROP PROCEDURE IF EXISTS sp_BuscarUltimos3Triajes;",
+            """
+            CREATE PROCEDURE sp_BuscarUltimos3Triajes(IN p_DNI VARCHAR(20))
+            BEGIN
+                SELECT T.ID_Triaje, T.Temperatura, T.Presion_Arterial, T.Saturacion_O2, T.Frecuencia_Cardiaca, T.Peso, T.Notas_Observaciones,
+                       DATE_FORMAT(T.Fecha_Hora, '%d/%m/%Y %H:%i') AS FechaHoraFormateada
+                FROM TRIAJE T
+                JOIN PACIENTE P ON T.ID_Paciente = P.ID_Paciente
+                WHERE P.DNI_CUI = p_DNI
+                ORDER BY T.Fecha_Hora DESC
+                LIMIT 3;
+            END;
+            """,
+            # sp_GuardarConsultaIA
+            "DROP PROCEDURE IF EXISTS sp_GuardarConsultaIA;",
+            """
+            CREATE PROCEDURE sp_GuardarConsultaIA(
+                IN p_ID_Consulta CHAR(36),
+                IN p_DNI VARCHAR(20),
+                IN p_ID_Usuario VARCHAR(50),
+                IN p_ID_Triaje CHAR(36),
+                IN p_Sintomas TEXT,
+                IN p_Hipotesis TEXT,
+                IN p_Idioma VARCHAR(10)
+            )
+            BEGIN
+                DECLARE v_ID_Paciente VARCHAR(50);
+                SELECT ID_Paciente INTO v_ID_Paciente FROM PACIENTE WHERE DNI_CUI = p_DNI LIMIT 1;
+                
+                INSERT INTO CONSULTA_IA (ID_Consulta, ID_Paciente, ID_Usuario, ID_Triaje, Sintomas_Texto, Hipotesis_Diagnostica, Idioma_Uso, Fecha_Consulta)
+                VALUES (p_ID_Consulta, v_ID_Paciente, p_ID_Usuario, p_ID_Triaje, p_Sintomas, p_Hipotesis, p_Idioma, NOW());
+            END;
+            """,
+            # sp_GuardarDetalleReceta
+            "DROP PROCEDURE IF EXISTS sp_GuardarDetalleReceta;",
+            """
+            CREATE PROCEDURE sp_GuardarDetalleReceta(
+                IN p_ID_Consulta CHAR(36),
+                IN p_ID_Medicamento CHAR(36),
+                IN p_Dosis TEXT,
+                IN p_Cantidad INT,
+                IN p_Alergia TINYINT(1)
+            )
+            BEGIN
+                DECLARE v_ID_Detalle VARCHAR(50);
+                SET v_ID_Detalle = CONCAT('DET-', FLOOR(RAND()*899999)+100000);
+                
+                INSERT INTO DETALLE_RECETA (ID_Detalle, ID_Consulta, ID_Medicamento, Dosis_Sugerida, Cantidad_Entregada, Validacion_Alergia)
+                VALUES (v_ID_Detalle, p_ID_Consulta, p_ID_Medicamento, p_Dosis, p_Cantidad, p_Alergia);
+                
+                -- Actualizar stock del medicamento
+                UPDATE MEDICAMENTO 
+                SET Stock_Actual = GREATEST(0, Stock_Actual - p_Cantidad)
+                WHERE ID_Medicamento = p_ID_Medicamento;
+            END;
+            """,
+            # sp_ListarHistorialClinico
+            "DROP PROCEDURE IF EXISTS sp_ListarHistorialClinico;",
+            """
+            CREATE PROCEDURE sp_ListarHistorialClinico(IN p_DNI VARCHAR(20))
+            BEGIN
+                SELECT C.ID_Consulta, C.Fecha_Consulta, C.Sintomas_Texto, C.Hipotesis_Diagnostica, C.Idioma_Uso,
+                       CONCAT(P.Nombres, ' ', P.Apellidos) AS Paciente, P.DNI_CUI AS DNI,
+                       U.Nombre_Completo AS Medico,
+                       T.Temperatura, T.Presion_Arterial
+                FROM CONSULTA_IA C
+                JOIN PACIENTE P ON C.ID_Paciente = P.ID_Paciente
+                JOIN USUARIO U ON C.ID_Usuario = U.ID_Usuario
+                LEFT JOIN TRIAJE T ON C.ID_Triaje = T.ID_Triaje
+                WHERE P.DNI_CUI = p_DNI
+                ORDER BY C.Fecha_Consulta DESC;
+            END;
+            """,
+            # sp_ObtenerDetalleHistorial
+            "DROP PROCEDURE IF EXISTS sp_ObtenerDetalleHistorial;",
+            """
+            CREATE PROCEDURE sp_ObtenerDetalleHistorial(IN p_ID_Consulta CHAR(36))
+            BEGIN
+                SELECT D.ID_Detalle, D.Dosis_Sugerida, D.Cantidad_Entregada, D.Validacion_Alergia,
+                       M.Nombre_Generico, M.Nombre_Comercial, M.Concentracion, M.Presentacion
+                FROM DETALLE_RECETA D
+                JOIN MEDICAMENTO M ON D.ID_Medicamento = M.ID_Medicamento
+                WHERE D.ID_Consulta = p_ID_Consulta;
+            END;
+            """,
+            
+            # sp_ReportePacientesPorDia
+            "DROP PROCEDURE IF EXISTS sp_ReportePacientesPorDia;",
+            """
+            CREATE PROCEDURE sp_ReportePacientesPorDia()
+            BEGIN
+                SELECT 
+                    DATE(created_at) AS fecha,
+                    COUNT(*) AS total
+                FROM PACIENTE
+                WHERE Estado = 1
+                GROUP BY DATE(created_at)
+                ORDER BY fecha ASC
+                LIMIT 7;
+            END;
+            """,
+            
+            # sp_ReportePacientesPorSemana
+            "DROP PROCEDURE IF EXISTS sp_ReportePacientesPorSemana;",
+            """
+            CREATE PROCEDURE sp_ReportePacientesPorSemana()
+            BEGIN
+                SELECT 
+                    YEARWEEK(created_at, 1) AS semana,
+                    COUNT(*) AS total
+                FROM PACIENTE
+                WHERE Estado = 1
+                GROUP BY YEARWEEK(created_at, 1)
+                ORDER BY semana ASC
+                LIMIT 8;
+            END;
+            """,
+            
+            # sp_ReportePacientesPorMes
+            "DROP PROCEDURE IF EXISTS sp_ReportePacientesPorMes;",
+            """
+            CREATE PROCEDURE sp_ReportePacientesPorMes()
+            BEGIN
+                SELECT 
+                    DATE_FORMAT(created_at, '%Y-%m') AS mes,
+                    COUNT(*) AS total
+                FROM PACIENTE
+                WHERE Estado = 1
+                GROUP BY DATE_FORMAT(created_at, '%Y-%m')
+                ORDER BY mes ASC
+                LIMIT 12;
+            END;
+            """,
+            
+            # sp_ReportePacientesPorAnio
+            "DROP PROCEDURE IF EXISTS sp_ReportePacientesPorAnio;",
+            """
+            CREATE PROCEDURE sp_ReportePacientesPorAnio()
+            BEGIN
+                SELECT 
+                    YEAR(created_at) AS anio,
+                    COUNT(*) AS total
+                FROM PACIENTE
+                WHERE Estado = 1
+                GROUP BY YEAR(created_at)
+                ORDER BY anio ASC
+                LIMIT 5;
+            END;
+            """,
+            
+            # sp_ReporteConsultasPorPeriodo
+            "DROP PROCEDURE IF EXISTS sp_ReporteConsultasPorPeriodo;",
+            """
+            CREATE PROCEDURE sp_ReporteConsultasPorPeriodo(IN p_periodo VARCHAR(10))
+            BEGIN
+                IF p_periodo = 'dia' THEN
+                    SELECT 'Hoy' AS periodo, COUNT(*) AS total
+                    FROM CONSULTA_IA
+                    WHERE DATE(Fecha_Consulta) = CURDATE();
+                ELSEIF p_periodo = 'semana' THEN
+                    SELECT 
+                        CASE 
+                            WHEN DATE(Fecha_Consulta) >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) THEN 'Esta Semana'
+                            ELSE 'Semana Anterior'
+                        END AS periodo,
+                        COUNT(*) AS total
+                    FROM CONSULTA_IA
+                    WHERE DATE(Fecha_Consulta) >= DATE_SUB(CURDATE(), INTERVAL 14 DAY)
+                    GROUP BY periodo;
+                ELSEIF p_periodo = 'mes' THEN
+                    SELECT 
+                        CASE 
+                            WHEN MONTH(Fecha_Consulta) = MONTH(CURDATE()) AND YEAR(Fecha_Consulta) = YEAR(CURDATE()) THEN 'Este Mes'
+                            ELSE 'Mes Anterior'
+                        END AS periodo,
+                        COUNT(*) AS total
+                    FROM CONSULTA_IA
+                    WHERE Fecha_Consulta >= DATE_SUB(CURDATE(), INTERVAL 2 MONTH)
+                    GROUP BY periodo;
+                ELSEIF p_periodo = 'anio' THEN
+                    SELECT 
+                        CASE 
+                            WHEN YEAR(Fecha_Consulta) = YEAR(CURDATE()) THEN 'Este Año'
+                            ELSE 'Año Anterior'
+                        END AS periodo,
+                        COUNT(*) AS total
+                    FROM CONSULTA_IA
+                    WHERE Fecha_Consulta >= DATE_SUB(CURDATE(), INTERVAL 2 YEAR)
+                    GROUP BY periodo;
+                END IF;
+            END;
             """
         ]
 
@@ -416,10 +629,10 @@ def configurar_base_de_datos():
             cursor.execute(sql)
         
         conn.commit()
-        print("✅ ¡Base de datos configurada correctamente!")
+        print("Success: Base de datos configurada correctamente!")
 
     except Error as e:
-        print(f"❌ Error al configurar la base de datos: {e}")
+        print(f"Error: Error al configurar la base de datos: {e}")
     finally:
         if conn.is_connected():
             cursor.close()

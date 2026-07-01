@@ -18,11 +18,18 @@
     <div class="bg-visuals"><div class="blob"></div><div class="grid-pattern"></div></div>
     <aside>
         <div class="user-profile">
-            <img src="https://i.pravatar.cc/150?u=admin" alt="Admin" class="profile-img">
+            <img src="https://api.dicebear.com/8.x/adventurer-neutral/svg?seed={{ session('user_id', 'admin') }}" alt="{{ session('user_nombre_completo', 'Usuario') }}" class="profile-img">
             <div class="user-info">
-                <span class="user-name">Dra. Alejandra Palma</span>
-                <span class="user-role">Administrador</span>
-                <span class="user-date" id="current-date">Cargando fecha...</span>
+                <span class="user-name">{{ session('user_nombre_completo', 'Usuario') }}</span>
+                <span class="user-role">@php
+                    $roles = [
+                        'admin' => 'Administrador',
+                        'tecnico' => 'Técnico',
+                        'enfermero' => 'Enfermero'
+                    ];
+                    echo $roles[session('user_role', 'enfermero')] ?? 'Usuario';
+                @endphp</span>
+                <span class="user-date">@ {{ session('user_username', 'usuario') }}</span>
             </div>
         </div>
         <h2>MariFarma Pro</h2>
@@ -71,6 +78,7 @@
                         <button onclick="showView('view-vademecum-gestion')" style="background: none; border: none; color: white; cursor: pointer; text-align: left; font-size: 0.85em; opacity: 0.7; padding: 5px 0;">• Gestión de Inventario</button>
                     </div>
                 </li>
+                <li class="{{ Request::is('usuarios*') ? 'active-link' : '' }}"><a href="{{ url('/usuarios') }}">Administración USERS</a></li>
                 <li class="{{ Request::is('reportes*') ? 'active-link' : '' }}"><a href="{{ url('/reportes') }}">Reportes Epidemiológicos</a></li>
                 <li style="padding: 15px;">
                     <select onchange="setLanguage(this.value)" style="width: 100%; padding: 5px; background: #34495e; color: white; border: 1px solid #555; border-radius: 4px;">

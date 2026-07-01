@@ -4,7 +4,6 @@
 <div class="dashboard-container" style="padding: 30px;">
     <div class="header" style="margin-bottom: 30px;">
         <h1 style="color: #2c3e50; margin: 0;">Panel Principal</h1>
-        <p style="color: #7f8c8d;">Resumen operativo del sistema BioFarma.</p>
     </div>
 
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px;">

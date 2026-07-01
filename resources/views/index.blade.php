@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{ csrf-token() }">
     <title>MariFarma - Bio-Asistente Inteligente</title>
     <link rel="stylesheet" href="{{ asset('css/style.css') }}">
 </head>
@@ -23,7 +24,7 @@
             <div class="carousel-slide"></div>
         </div>
 
-        <button class="btn-report">🚩 Reportar problema técnico</button>
+        
         <div class="login-card">
             <div style="font-size: 3rem; margin-bottom: 10px;">🌿</div>
             <h1>MariFarma Pro</h1>

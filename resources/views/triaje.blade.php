@@ -7,7 +7,7 @@
         <p style="color: #666;">Captura de signos vitales para evaluación médica.</p>
     </header>
 
-    <form id="form-triaje" onsubmit="event.preventDefault(); registrarTriaje();">
+    <form id="form-triaje" onsubmit="event.preventDefault(); guardarTriaje();">
         <div class="card" style="margin-bottom: 20px; border-left: 5px solid var(--accent);">
             <div class="form-group">
                 <label>Identificar Paciente:</label>
@@ -55,11 +55,17 @@
 </div>
 
 <div id="view-triaje-gestion" class="view" style="display: none;">
-    <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-        <h1>Gestión de Triajes (Hoy)</h1>
-        <div style="display: flex; gap: 10px;">
+    <header style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 10px;">
+        <h1>Gestión de Triajes</h1>
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
             <input type="text" id="search-triaje-dni" placeholder="🔍 Buscar historial por DNI..." style="padding: 10px; width: 250px; border-radius: 5px; border: 1px solid #ccc;">
             <button class="btn" style="width: auto;" onclick="window.buscarHistorialTriaje()">Consultar</button>
+        </div>
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <label for="fecha-triaje" style="font-weight: 500;">Fecha:</label>
+            <input type="date" id="fecha-triaje" style="padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-size: 1rem;">
+            <button class="btn" style="background: var(--primary);" onclick="window.cargarTriajesPorFecha()">Aceptar</button>
+            <button class="btn" style="background: #27ae60;" onclick="window.generarPDFTriajes()">📄 Generar PDF</button>
         </div>
     </header>
 
@@ -73,7 +79,10 @@
                     <th style="padding: 12px;">Temp</th>
                     <th style="padding: 12px;">P.A.</th>
                     <th style="padding: 12px;">Sat. O2</th>
-                    <th style="padding: 12px;">Acciones</th>
+                    <th style="padding: 12px;">FC</th>
+                    <th style="padding: 12px;">Peso</th>
+                    <th style="padding: 12px;">Notas</th>
+                    <th style="padding: 12px;">Atendido Por</th>
                 </tr>
             </thead>
             <tbody id="tabla-triaje-cuerpo">
@@ -84,4 +93,5 @@
 
     <div id="historial-triaje-resultado" style="margin-top: 30px;"></div>
 </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 @endsection

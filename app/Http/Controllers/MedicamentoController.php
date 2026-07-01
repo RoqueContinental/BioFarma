@@ -8,18 +8,19 @@ use Illuminate\Support\Facades\Log;
 
 class MedicamentoController extends Controller
 {
-    
     public function listar()
     {
         try {
             $medicamentos = DB::select('CALL sp_ListarMedicamentos()');
+
             return response()->json($medicamentos);
         } catch (\Exception $e) {
-            Log::error("Error al listar medicamentos: " . $e->getMessage());
+            Log::error('Error al listar medicamentos: '.$e->getMessage());
+
             return response()->json([
-                'status' => 'error', 
+                'status' => 'error',
                 'message' => 'No se pudo cargar el inventario de medicamentos.',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -31,12 +32,12 @@ class MedicamentoController extends Controller
     {
         try {
             // Llamamos al nuevo procedimiento almacenado
-            $medicamento = DB::select("CALL sp_BuscarMedicamento(?)", [$criterio]);
+            $medicamento = DB::select('CALL sp_BuscarMedicamento(?)', [$criterio]);
 
             if (empty($medicamento)) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'No se encontró un medicamento con ese código.'
+                    'message' => 'No se encontró un medicamento con ese código.',
                 ], 404);
             }
 
@@ -56,35 +57,37 @@ class MedicamentoController extends Controller
             'codigo_barras' => 'nullable|string',
             'nombre_generico' => 'required|string',
             'nombre_comercial' => 'nullable|string',
-            'concentracion' => 'required|string',
+            'concentracion' => 'required|numeric|min:0',
+            'unidad' => 'required|string',
             'presentacion' => 'required|string',
-            'stock' => 'required|numeric',
-            'vence' => 'required|date'
+            'stock' => 'required|numeric|min:0',
+            'vence' => 'required|date',
         ]);
 
         try {
             // Aseguramos que el ID se pase como null si es "0" o vacío para que el SP detecte inserción
             DB::statement('CALL sp_GuardarMedicamento(?, ?, ?, ?, ?, ?, ?, ?)', [
-                ($request->id == "0" || empty($request->id)) ? null : $request->id,
+                ($request->id == '0' || empty($request->id)) ? null : $request->id,
                 $request->codigo_barras ?? '',
                 $request->nombre_generico,
                 $request->nombre_comercial,
-                $request->concentracion . ' mg', // Se añade la unidad automáticamente
+                $request->concentracion.' '.$request->unidad,
                 $request->presentacion,
-                (int)$request->stock,         // Stock Actual
-                $request->vence ?? null       // Fecha Vencimiento
+                (int) $request->stock,         // Stock Actual
+                $request->vence ?? null,       // Fecha Vencimiento
             ]);
 
             return response()->json([
                 'status' => 'success',
-                'message' => 'El inventario ha sido actualizado correctamente.'
+                'message' => 'El inventario ha sido actualizado correctamente.',
             ]);
         } catch (\Exception $e) {
-            Log::error("Error crítico al guardar medicamento: " . $e->getMessage());
+            Log::error('Error crítico al guardar medicamento: '.$e->getMessage());
+
             return response()->json([
                 'status' => 'error',
                 'message' => 'Error al guardar el medicamento en la base de datos.',
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
             ], 500);
         }
     }
@@ -95,17 +98,19 @@ class MedicamentoController extends Controller
     public function eliminar(Request $request)
     {
         try {
-            if (!$request->has('id')) {
+            if (! $request->has('id')) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'No se proporcionó un ID válido para la baja.'
+                    'message' => 'No se proporcionó un ID válido para la baja.',
                 ], 400);
             }
 
             DB::statement('CALL sp_EliminarMedicamento(?)', [$request->id]);
+
             return response()->json(['status' => 'success', 'message' => 'Medicamento eliminado del sistema.']);
         } catch (\Exception $e) {
-            Log::error("Error al eliminar medicamento: " . $e->getMessage());
+            Log::error('Error al eliminar medicamento: '.$e->getMessage());
+
             return response()->json(['status' => 'error', 'message' => 'No se pudo procesar la eliminación.'], 500);
         }
     }

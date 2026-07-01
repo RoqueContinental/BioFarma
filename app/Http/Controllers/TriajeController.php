@@ -16,9 +16,11 @@ class TriajeController extends Controller
         try {
             $fecha = $request->query('fecha', date('Y-m-d'));
             $triajes = DB::select('CALL sp_ListarTriajePorFecha(?)', [$fecha]);
+
             return response()->json($triajes);
         } catch (\Exception $e) {
-            Log::error("Error al listar triajes: " . $e->getMessage());
+            Log::error('Error al listar triajes: '.$e->getMessage());
+
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
         }
     }
@@ -35,23 +37,27 @@ class TriajeController extends Controller
             'saturacion' => 'required|numeric',
             'fc' => 'required|integer',
             'peso' => 'required|numeric',
-            'id_usuario' => 'required'
+            'notas' => 'nullable|string',
+            'id_usuario' => 'required',
         ]);
 
         try {
-            DB::select('CALL sp_GuardarTriaje(?, ?, ?, ?, ?, ?, ?)', [
-                $request->dni, 
-                $request->temp, 
+            DB::select('CALL sp_GuardarTriaje(?, ?, ?, ?, ?, ?, ?, ?)', [
+                $request->dni,
+                $request->temp,
                 $request->presion,
-                $request->saturacion, 
-                $request->fc, 
-                $request->peso, 
-                $request->id_usuario
+                $request->saturacion,
+                $request->fc,
+                $request->peso,
+                $request->notas,
+                $request->id_usuario,
             ]);
+
             return response()->json(['status' => 'success', 'message' => 'Triaje registrado correctamente.']);
         } catch (\Exception $e) {
-            Log::error("Error al guardar triaje: " . $e->getMessage());
-            return response()->json(['status' => 'error', 'message' => 'Error al guardar triaje: ' . $e->getMessage()], 500);
+            Log::error('Error al guardar triaje: '.$e->getMessage());
+
+            return response()->json(['status' => 'error', 'message' => 'Error al guardar triaje: '.$e->getMessage()], 500);
         }
     }
 
@@ -65,15 +71,17 @@ class TriajeController extends Controller
             if (empty($historial)) {
                 return response()->json([
                     'status' => 'error',
-                    'message' => 'No se encontró historial para este DNI'
+                    'message' => 'No se encontró historial para este DNI',
                 ], 404);
             }
+
             return response()->json([
                 'status' => 'success',
-                'data' => $historial
+                'data' => $historial,
             ]);
         } catch (\Exception $e) {
-            Log::error("Error al buscar historial de triaje: " . $e->getMessage());
+            Log::error('Error al buscar historial de triaje: '.$e->getMessage());
+
             return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
         }
     }

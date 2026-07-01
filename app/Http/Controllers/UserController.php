@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
 {
@@ -35,19 +34,44 @@ class UserController extends Controller
             ], 403);
         }
 
+        // Validar campos obligatorios
         $request->validate([
+            'id_usuario' => 'required|string',
             'username' => 'required|string',
-            'password' => 'required|string',
-            'nombre' => 'required|string',
+            'nombre_completo' => 'required|string',
             'rol' => 'required|in:admin,tecnico,enfermero',
         ]);
 
+        // Primero, obtenemos la lista de usuarios para verificar si es una actualización
+        $usuariosExistentes = DB::select('CALL sp_ListarUsuarios()');
+        $usuarioExistente = collect($usuariosExistentes)->firstWhere('ID_Usuario', $request->id_usuario);
+
+        $idUsuario = $request->id_usuario;
+        $username = $request->username;
+        $nombreCompleto = $request->nombre_completo;
+        $rol = $request->rol;
+        $password = $request->password;
+
+        if ($usuarioExistente) {
+            // Es actualización
+            if (!$password) {
+                // Si no se proporciona, mantenemos la contraseña existente
+                $password = $usuarioExistente->Password;
+            }
+        } else {
+            // Es creación, la contraseña es obligatoria
+            $request->validate([
+                'password' => 'required|string',
+            ]);
+        }
+
         try {
-            DB::statement('CALL sp_GuardarUsuario(?, ?, ?, ?)', [
-                $request->username,
-                $request->password, // Encriptar antes de guardar
-                $request->nombre,
-                $request->rol
+            DB::statement('CALL sp_GuardarUsuario(?, ?, ?, ?, ?)', [
+                $idUsuario,
+                $username,
+                $password,
+                $nombreCompleto,
+                $rol
             ]);
 
             return response()->json([

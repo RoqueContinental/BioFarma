@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+    'deepseek' => [
+        'key' => env('DEEPSEEK_API_KEY'),
+        'model' => env('DEEPSEEK_MODEL', 'deepseek-1'),
+        'endpoint' => env('DEEPSEEK_ENDPOINT', 'https://api.deepseek.ai/v1/generate'),
+    ],
+
 ];
